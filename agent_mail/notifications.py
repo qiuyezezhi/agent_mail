@@ -1,5 +1,6 @@
 """Platform system notifications for main-agent delivery."""
 
+import json
 import plistlib
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ MACOS_LSREGISTER = (
 )
 
 MACOS_NOTIFIER_SWIFT = r'''
+import AppKit
 import Foundation
 import UserNotifications
 
@@ -29,48 +31,229 @@ func argumentValue(_ name: String) -> String {
     return args[index + 1]
 }
 
-let title = argumentValue("--title")
-let body = argumentValue("--body")
-let center = UNUserNotificationCenter.current()
-let semaphore = DispatchSemaphore(value: 0)
-var exitCode: Int32 = 0
+func payloadValue(_ payload: [String: Any], _ name: String, fallback: String) -> String {
+    payload[name] as? String ?? fallback
+}
 
-center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-    if let error = error {
-        FileHandle.standardError.write(Data("notification authorization failed: \(error.localizedDescription)\n".utf8))
-        exitCode = 2
-        semaphore.signal()
-        return
+func readPayload(_ path: String) -> [String: Any] {
+    guard !path.isEmpty else {
+        return [:]
     }
-    if !granted {
-        FileHandle.standardError.write(Data("notification authorization denied\n".utf8))
-        exitCode = 3
-        semaphore.signal()
-        return
+    let url = URL(fileURLWithPath: path)
+    guard let data = try? Data(contentsOf: url) else {
+        return [:]
+    }
+    let object = try? JSONSerialization.jsonObject(with: data)
+    return object as? [String: Any] ?? [:]
+}
+
+struct MessageDetails {
+    let messageID: String
+    let subject: String
+    let sender: String
+    let recipient: String
+    let body: String
+
+    var title: String {
+        "agent-notify: \(subject)"
     }
 
-    let content = UNMutableNotificationContent()
-    content.title = title
-    content.body = body
-    content.sound = .default
+    var summary: String {
+        "From \(sender) to \(recipient)"
+    }
+}
 
-    let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-    center.add(request) { error in
-        if let error = error {
-            FileHandle.standardError.write(Data("notification delivery failed: \(error.localizedDescription)\n".utf8))
-            exitCode = 4
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSWindowDelegate {
+    private let details: MessageDetails
+    private var panel: NSPanel?
+    private var quitTimer: Timer?
+
+    init(details: MessageDetails) {
+        self.details = details
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        UNUserNotificationCenter.current().delegate = self
+        scheduleQuit(after: 300)
+        deliverNotification()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        DispatchQueue.main.async {
+            self.showDetailCard()
+            completionHandler()
         }
-        semaphore.signal()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        NSApp.terminate(nil)
+    }
+
+    private func deliverNotification() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error = error {
+                writeError("notification authorization failed: \(error.localizedDescription)")
+                exit(2)
+            }
+            if !granted {
+                writeError("notification authorization denied")
+                exit(3)
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = self.details.title
+            content.body = self.details.summary
+            content.sound = .default
+
+            let request = UNNotificationRequest(identifier: self.details.messageID, content: content, trigger: nil)
+            center.add(request) { error in
+                if let error = error {
+                    writeError("notification delivery failed: \(error.localizedDescription)")
+                    exit(4)
+                }
+            }
+        }
+    }
+
+    private func showDetailCard() {
+        quitTimer?.invalidate()
+
+        if let panel = panel {
+            panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let card = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 360),
+            styleMask: [.titled, .closable, .utilityWindow],
+            backing: .buffered,
+            defer: false
+        )
+        card.title = "agent-notify"
+        card.isReleasedWhenClosed = false
+        card.delegate = self
+        card.level = .floating
+        card.center()
+
+        let content = NSView(frame: card.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 520, height: 360))
+        content.translatesAutoresizingMaskIntoConstraints = false
+
+        let title = label(details.subject, size: 18, weight: .semibold)
+        let route = label("From \(details.sender) to \(details.recipient)", size: 13, weight: .regular, color: .secondaryLabelColor)
+        let messageID = label("Message ID: \(details.messageID)", size: 12, weight: .regular, color: .tertiaryLabelColor)
+        let body = textView(details.body)
+        let copy = NSButton(title: "Copy read command", target: self, action: #selector(copyReadCommand))
+        copy.bezelStyle = .rounded
+        let close = NSButton(title: "Close", target: self, action: #selector(closeCard))
+        close.bezelStyle = .rounded
+
+        let buttons = NSStackView(views: [copy, close])
+        buttons.orientation = .horizontal
+        buttons.alignment = .centerY
+        buttons.spacing = 8
+
+        let stack = NSStackView(views: [title, route, messageID, body, buttons])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        content.addSubview(stack)
+        card.contentView = content
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 22),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -18),
+            body.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            body.heightAnchor.constraint(greaterThanOrEqualToConstant: 160),
+        ])
+
+        panel = card
+        card.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func copyReadCommand() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("agent-notify read --agent \(details.recipient) \(details.messageID)", forType: .string)
+    }
+
+    @objc private func closeCard() {
+        panel?.close()
+    }
+
+    private func scheduleQuit(after seconds: TimeInterval) {
+        quitTimer?.invalidate()
+        quitTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
+            NSApp.terminate(nil)
+        }
     }
 }
 
-if semaphore.wait(timeout: .now() + 10) == .timedOut {
-    FileHandle.standardError.write(Data("notification delivery timed out\n".utf8))
-    exitCode = 5
+func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor = .labelColor) -> NSTextField {
+    let view = NSTextField(labelWithString: text)
+    view.font = .systemFont(ofSize: size, weight: weight)
+    view.textColor = color
+    view.lineBreakMode = .byWordWrapping
+    view.maximumNumberOfLines = 0
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
 }
 
-RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.5))
-exit(exitCode)
+func textView(_ text: String) -> NSScrollView {
+    let textView = NSTextView()
+    textView.string = text
+    textView.isEditable = false
+    textView.isSelectable = true
+    textView.drawsBackground = false
+    textView.font = .systemFont(ofSize: 13)
+    textView.textContainerInset = NSSize(width: 8, height: 8)
+
+    let scroll = NSScrollView()
+    scroll.borderType = .bezelBorder
+    scroll.hasVerticalScroller = true
+    scroll.documentView = textView
+    scroll.translatesAutoresizingMaskIntoConstraints = false
+    return scroll
+}
+
+func writeError(_ message: String) {
+    FileHandle.standardError.write(Data("\(message)\n".utf8))
+}
+
+let payloadPath = argumentValue("--payload-file")
+let payload = readPayload(payloadPath)
+if !payloadPath.isEmpty {
+    try? FileManager.default.removeItem(atPath: payloadPath)
+}
+let details = MessageDetails(
+    messageID: payloadValue(payload, "message_id", fallback: argumentValue("--message-id")),
+    subject: payloadValue(payload, "subject", fallback: argumentValue("--subject")),
+    sender: payloadValue(payload, "from", fallback: argumentValue("--from")),
+    recipient: payloadValue(payload, "to", fallback: argumentValue("--to")),
+    body: payloadValue(payload, "body", fallback: argumentValue("--body"))
+)
+let delegate = AppDelegate(details: details)
+let app = NSApplication.shared
+app.delegate = delegate
+app.run()
 '''
 
 
@@ -90,8 +273,39 @@ def macos_notifier_executable(app_dir):
     return Path(app_dir) / "Contents" / "MacOS" / MACOS_NOTIFIER_EXECUTABLE
 
 
+def macos_notifier_payload_dir(app_dir=None):
+    selected_app_dir = Path(app_dir) if app_dir else macos_notifier_app_dir()
+    return selected_app_dir.parent / "payloads"
+
+
 def macos_icon_source():
     return Path(__file__).resolve().parents[1] / "assets" / "agent-notify-icon.png"
+
+
+def write_macos_notification_payload(message, payload_dir=None):
+    selected_payload_dir = Path(payload_dir) if payload_dir else macos_notifier_payload_dir()
+    selected_payload_dir.mkdir(parents=True, exist_ok=True)
+    selected_payload_dir.chmod(0o700)
+    payload = {
+        "message_id": str(message["id"]),
+        "subject": str(message["subject"]),
+        "from": str(message["from"]),
+        "to": str(message["to"]),
+        "body": str(message.get("body", "")),
+    }
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        prefix="message-",
+        suffix=".json",
+        dir=selected_payload_dir,
+        delete=False,
+    ) as handle:
+        json.dump(payload, handle, ensure_ascii=False)
+        handle.write("\n")
+        path = Path(handle.name)
+    path.chmod(0o600)
+    return path
 
 
 def write_macos_notifier_bundle(app_dir, executable):
@@ -264,17 +478,15 @@ def build_macos_notification_command(message, notifier_app=None):
     title = f"agent-notify: {message['subject']}"
     body = f"From {message['from']} to {message['to']}"
     if notifier_app is not None:
+        payload_file = write_macos_notification_payload(message, macos_notifier_payload_dir(notifier_app))
         return [
             "open",
-            "-W",
             "-gj",
             "-n",
             str(notifier_app),
             "--args",
-            "--title",
-            title,
-            "--body",
-            body,
+            "--payload-file",
+            str(payload_file),
         ]
     script = (
         f'display notification "{_escape_applescript(body)}" '

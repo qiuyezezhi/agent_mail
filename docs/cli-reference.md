@@ -566,7 +566,7 @@ agent-notify watch install [--agents <csv>] [--interval <seconds>] [--timeout <s
 - macOS：安装 `launchd` user agent
 - Windows：安装 Task Scheduler `ONLOGON` 任务
 
-macOS 系统通知优先使用隐藏后台 helper app，安装位置是 `~/Library/Application Support/agent-notify/notifier/agent-notify.app`。它不会出现在启动台、Dock 或 `/Applications`；如果缺少 Swift 编译器或 helper app 无法安装，会回退到 `osascript`。
+macOS 系统通知优先使用隐藏后台 helper app，安装位置是 `~/Library/Application Support/agent-notify/notifier/agent-notify.app`。它不会出现在启动台、Dock 或 `/Applications`；点击通知后会弹出临时详情卡片，显示完整消息内容和读取命令；如果缺少 Swift 编译器或 helper app 无法安装，会回退到 `osascript`。
 
 输出字段：
 

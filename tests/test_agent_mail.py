@@ -433,11 +433,38 @@ class AgentNotifyCliTest(unittest.TestCase):
         message = {"id": "123", "from": "worker", "to": "codex-main", "subject": "Review", "body": "Body"}
         notifier_app = self.repo / ".agent-notify" / "notifier" / "agent-notify.app"
         command = notifications.build_macos_notification_command(message, notifier_app=notifier_app)
-        self.assertEqual(command[:6], ["open", "-W", "-gj", "-n", str(notifier_app), "--args"])
-        self.assertIn("--title", command)
+        self.assertEqual(command[:5], ["open", "-gj", "-n", str(notifier_app), "--args"])
+        self.assertNotIn("-W", command)
+        self.assertNotIn("--message-id", command)
+        self.assertNotIn("123", command)
+        self.assertNotIn("--subject", command)
+        self.assertNotIn("Review", command)
+        self.assertNotIn("--from", command)
+        self.assertNotIn("worker", command)
+        self.assertNotIn("--to", command)
+        self.assertNotIn("codex-main", command)
         self.assertNotIn("--subtitle", command)
-        self.assertNotIn(message["id"], command)
-        self.assertIn("--body", command)
+        self.assertNotIn("--body", command)
+        self.assertNotIn("Body", command)
+        self.assertIn("--payload-file", command)
+        payload = Path(command[command.index("--payload-file") + 1])
+        self.assertTrue(payload.exists())
+        self.assertEqual(payload.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(
+            json.loads(payload.read_text(encoding="utf-8")),
+            {"message_id": "123", "subject": "Review", "from": "worker", "to": "codex-main", "body": "Body"},
+        )
+
+    def test_macos_notifier_helper_handles_click_with_detail_card(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import notifications
+
+        source = notifications.MACOS_NOTIFIER_SWIFT
+        self.assertIn("UNUserNotificationCenterDelegate", source)
+        self.assertIn("userNotificationCenter", source)
+        self.assertIn("showDetailCard", source)
+        self.assertIn("NSPanel", source)
+        self.assertIn("Copy read command", source)
 
     def test_notify_main_agent_falls_back_to_osascript_without_macos_helper_app(self):
         sys.path.insert(0, str(ROOT))
