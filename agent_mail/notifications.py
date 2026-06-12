@@ -139,18 +139,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         let card = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 360),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 380),
             styleMask: [.titled, .closable, .utilityWindow],
             backing: .buffered,
             defer: false
         )
         card.title = "agent-notify"
         card.isReleasedWhenClosed = false
+        card.hidesOnDeactivate = false
         card.delegate = self
         card.level = .floating
         card.center()
 
-        let content = NSView(frame: card.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 520, height: 360))
+        let content = NSView(frame: card.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 560, height: 380))
         content.translatesAutoresizingMaskIntoConstraints = false
 
         let title = label(details.subject, size: 18, weight: .semibold)
@@ -167,12 +168,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         content.addSubview(stack)
         card.contentView = content
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 22),
-            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -18),
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 28),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -28),
+            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 26),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -24),
             body.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            body.heightAnchor.constraint(greaterThanOrEqualToConstant: 160),
+            body.heightAnchor.constraint(greaterThanOrEqualToConstant: 180),
         ])
 
         panel = card
@@ -202,17 +203,24 @@ func bodyView(_ text: String) -> NSScrollView {
     let body = NSTextField(wrappingLabelWithString: text.isEmpty ? "(empty body)" : text)
     body.font = .systemFont(ofSize: 13)
     body.textColor = .labelColor
+    body.lineBreakMode = .byWordWrapping
     body.translatesAutoresizingMaskIntoConstraints = false
     let scroll = NSScrollView()
-    scroll.borderType = .bezelBorder
+    scroll.borderType = .noBorder
     scroll.hasVerticalScroller = true
     scroll.documentView = body
+    scroll.drawsBackground = false
+    scroll.wantsLayer = true
+    scroll.layer?.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.72).cgColor
+    scroll.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+    scroll.layer?.borderWidth = 1
+    scroll.layer?.cornerRadius = 12
     scroll.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-        body.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor, constant: 8),
-        body.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor, constant: -8),
-        body.topAnchor.constraint(equalTo: scroll.contentView.topAnchor, constant: 8),
-        body.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor, constant: -16),
+        body.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor, constant: 14),
+        body.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor, constant: -14),
+        body.topAnchor.constraint(equalTo: scroll.contentView.topAnchor, constant: 14),
+        body.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor, constant: -28),
     ])
     return scroll
 }
