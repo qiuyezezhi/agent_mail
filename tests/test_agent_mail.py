@@ -1730,6 +1730,10 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("<string>7</string>", plist_text)
         with plist_path.open("rb") as fh:
             plist = plistlib.load(fh)
+        watcher_executable = Path(installed["executable"])
+        self.assertEqual(watcher_executable.name, "agent-notify-watcher")
+        self.assertTrue(watcher_executable.is_symlink())
+        self.assertEqual(Path(plist["ProgramArguments"][0]), watcher_executable)
         self.assertEqual(plist["EnvironmentVariables"]["HOME"], str(home))
         self.assertEqual(plist["EnvironmentVariables"]["PATH"], env["PATH"])
 
@@ -1739,6 +1743,7 @@ class AgentNotifyCliTest(unittest.TestCase):
 
         uninstalled = self.parse_json(self.cli("watch", "uninstall", env=env))
         self.assertFalse(plist_path.exists())
+        self.assertFalse(watcher_executable.exists())
         self.assertFalse(uninstalled["installed"])
 
         calls = [json.loads(line) for line in launchctl_log.read_text(encoding="utf-8").splitlines()]

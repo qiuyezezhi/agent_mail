@@ -14,12 +14,32 @@ from .storage import atomic_write_bytes, ensure_dirs
 from .utils import print_json
 
 
+WATCHER_PROCESS_NAME = "agent-notify-watcher"
+
+
 def watcher_label(root):
     digest = hashlib.sha256(str(root.parent.resolve()).encode("utf-8")).hexdigest()[:12]
     return f"{WATCHER_LABEL_PREFIX}.{digest}"
 
 def watcher_plist_path(root):
     return Path.home() / "Library" / "LaunchAgents" / f"{watcher_label(root)}.plist"
+
+def watcher_executable_path(root):
+    return root / "watcher-bin" / WATCHER_PROCESS_NAME
+
+def ensure_watcher_executable(root):
+    path = watcher_executable_path(root)
+    target = Path(sys.executable).resolve()
+    if path.exists() or path.is_symlink():
+        try:
+            if path.resolve() == target:
+                return path
+        except FileNotFoundError:
+            pass
+        path.unlink()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.symlink_to(target)
+    return path
 
 def format_number(value):
     if isinstance(value, float) and value.is_integer():
@@ -34,10 +54,11 @@ def install_watcher(root, agents, interval, timeout):
     plist_path = watcher_plist_path(root)
     log_path = logs_dir(root) / "watcher.log"
     script_path = Path(sys.argv[0]).resolve()
+    watcher_executable = ensure_watcher_executable(root)
     plist = {
         "Label": label,
         "ProgramArguments": [
-            sys.executable,
+            str(watcher_executable),
             str(script_path),
             "watch",
             "run",
@@ -64,7 +85,13 @@ def install_watcher(root, agents, interval, timeout):
     loaded = subprocess.run(["launchctl", "load", str(plist_path)], text=True, capture_output=True)
     if loaded.returncode != 0:
         raise NotifyError(loaded.stderr.strip() or f"could not load launch agent: {label}")
-    return {"installed": True, "label": label, "plist": str(plist_path), "log": str(log_path)}
+    return {
+        "installed": True,
+        "label": label,
+        "plist": str(plist_path),
+        "log": str(log_path),
+        "executable": str(watcher_executable),
+    }
 
 def command_watch_install(args):
     root = repo_notify_root()
@@ -112,6 +139,13 @@ def uninstall_watcher(root):
     if plist_path.exists():
         subprocess.run(["launchctl", "unload", str(plist_path)], text=True, capture_output=True)
         plist_path.unlink()
+    executable = watcher_executable_path(root)
+    if executable.exists() or executable.is_symlink():
+        executable.unlink()
+        try:
+            executable.parent.rmdir()
+        except OSError:
+            pass
     return {"installed": False, "loaded": False, "label": label, "plist": str(plist_path)}
 
 def command_watch_uninstall(_args):
