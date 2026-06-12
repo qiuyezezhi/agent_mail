@@ -468,6 +468,9 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertNotIn("NSPasteboard.general", source)
         self.assertNotIn("NSButton(", source)
         self.assertNotIn("Process()", source)
+        self.assertIn("bodyView(details.body)", source)
+        self.assertIn("NSTextField(wrappingLabelWithString:", source)
+        self.assertNotIn("NSTextView()", source)
 
     def test_notify_main_agent_falls_back_to_osascript_without_macos_helper_app(self):
         sys.path.insert(0, str(ROOT))

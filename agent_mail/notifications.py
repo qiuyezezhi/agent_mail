@@ -156,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let title = label(details.subject, size: 18, weight: .semibold)
         let route = label("From \(details.sender) to \(details.recipient)", size: 13, weight: .regular, color: .secondaryLabelColor)
         let messageID = label("Message ID: \(details.messageID)", size: 12, weight: .regular, color: .tertiaryLabelColor)
-        let body = textView(details.body)
+        let body = bodyView(details.body)
 
         let stack = NSStackView(views: [title, route, messageID, body])
         stack.orientation = .vertical
@@ -198,20 +198,22 @@ func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor 
     return view
 }
 
-func textView(_ text: String) -> NSScrollView {
-    let textView = NSTextView()
-    textView.string = text
-    textView.isEditable = false
-    textView.isSelectable = true
-    textView.drawsBackground = false
-    textView.font = .systemFont(ofSize: 13)
-    textView.textContainerInset = NSSize(width: 8, height: 8)
-
+func bodyView(_ text: String) -> NSScrollView {
+    let body = NSTextField(wrappingLabelWithString: text.isEmpty ? "(empty body)" : text)
+    body.font = .systemFont(ofSize: 13)
+    body.textColor = .labelColor
+    body.translatesAutoresizingMaskIntoConstraints = false
     let scroll = NSScrollView()
     scroll.borderType = .bezelBorder
     scroll.hasVerticalScroller = true
-    scroll.documentView = textView
+    scroll.documentView = body
     scroll.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+        body.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor, constant: 8),
+        body.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor, constant: -8),
+        body.topAnchor.constraint(equalTo: scroll.contentView.topAnchor, constant: 8),
+        body.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor, constant: -16),
+    ])
     return scroll
 }
 
