@@ -139,12 +139,12 @@ def watch_once(root, agents, timeout_seconds):
                 }
             )
             continue
+        if notification_was_delivered(root, message["id"]):
+            report["skipped"].append(
+                {"agent": agent, "message_id": message["id"], "reason": "notification already delivered"}
+            )
+            continue
         if is_main_agent(root, agent):
-            if notification_was_delivered(root, message["id"]):
-                report["skipped"].append(
-                    {"agent": agent, "message_id": message["id"], "reason": "notification already delivered"}
-                )
-                continue
             try:
                 notification = notify_main_agent(message)
             except NotifyError as exc:
@@ -236,6 +236,7 @@ def watch_once(root, agents, timeout_seconds):
                 "returncode": result.returncode,
             }
             if result.returncode == 0:
+                record_notification_delivered(root, message["id"], agent)
                 clear_retry_failure(root, message["id"])
                 report["attempted"].append(entry)
             elif agent_type_value == "claude" and claude_conversation_is_missing(result):
@@ -284,6 +285,7 @@ def watch_once(root, agents, timeout_seconds):
                     "fallback_from_session_id": session["id"],
                 }
                 if fallback.returncode == 0:
+                    record_notification_delivered(root, message["id"], agent)
                     clear_retry_failure(root, message["id"])
                     report["attempted"].append(fallback_entry)
                 else:

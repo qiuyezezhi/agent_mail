@@ -465,6 +465,8 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("showDetailCard", source)
         self.assertIn("NSPanel", source)
         self.assertIn("Copy read command", source)
+        self.assertIn("NSPasteboard.general", source)
+        self.assertNotIn("Process()", source)
 
     def test_notify_main_agent_falls_back_to_osascript_without_macos_helper_app(self):
         sys.path.insert(0, str(ROOT))
@@ -1193,6 +1195,13 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("handle --agent claude", prompt)
         inbox = self.parse_json(self.cli("inbox", "--agent", "claude"))
         self.assertEqual(inbox[0]["status"], "unread")
+        state = json.loads((self.repo / ".agent-notify" / "watcher-state.json").read_text(encoding="utf-8"))
+        self.assertIn(message["id"], state["delivered_notifications"])
+
+        second = self.parse_json(self.cli("watch", "run", "--once", "--agents", "claude", env=env))
+        self.assertEqual(second["attempted"], [])
+        self.assertEqual(second["skipped"][0]["reason"], "notification already delivered")
+        self.assertEqual(len(call_log.read_text(encoding="utf-8").splitlines()), 1)
 
     def test_watch_uses_latest_project_session_from_claude_history(self):
         self.cli("register", "codex", "--main")
