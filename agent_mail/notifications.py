@@ -4,6 +4,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from .errors import NotifyError
@@ -29,7 +30,6 @@ func argumentValue(_ name: String) -> String {
 }
 
 let title = argumentValue("--title")
-let subtitle = argumentValue("--subtitle")
 let body = argumentValue("--body")
 let center = UNUserNotificationCenter.current()
 let semaphore = DispatchSemaphore(value: 0)
@@ -51,7 +51,6 @@ center.requestAuthorization(options: [.alert, .sound]) { granted, error in
 
     let content = UNMutableNotificationContent()
     content.title = title
-    content.subtitle = subtitle
     content.body = body
     content.sound = .default
 
@@ -126,45 +125,47 @@ def install_macos_notifier_icon(app_dir, source_icon=None):
         return {"installed": False, "reason": "icon tools not found", "source": str(source)}
 
     resources = Path(app_dir) / "Contents" / "Resources"
-    iconset = resources / f"{MACOS_NOTIFIER_ICON}.iconset"
     icns = resources / f"{MACOS_NOTIFIER_ICON}.icns"
-    iconset.mkdir(parents=True, exist_ok=True)
-    sizes = [
-        (16, "icon_16x16.png"),
-        (32, "icon_16x16@2x.png"),
-        (32, "icon_32x32.png"),
-        (64, "icon_32x32@2x.png"),
-        (128, "icon_128x128.png"),
-        (256, "icon_128x128@2x.png"),
-        (256, "icon_256x256.png"),
-        (512, "icon_256x256@2x.png"),
-        (512, "icon_512x512.png"),
-        (1024, "icon_512x512@2x.png"),
-    ]
-    for pixels, name in sizes:
-        result = subprocess.run(
-            [sips, "-z", str(pixels), str(pixels), str(source), "--out", str(iconset / name)],
-            text=True,
-            capture_output=True,
-        )
+    resources.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"{MACOS_NOTIFIER_ICON}.", suffix=".iconset", dir=resources) as iconset_name:
+        iconset = Path(iconset_name)
+        sizes = [
+            (16, "icon_16x16.png"),
+            (32, "icon_16x16@2x.png"),
+            (32, "icon_32x32.png"),
+            (64, "icon_32x32@2x.png"),
+            (128, "icon_128x128.png"),
+            (256, "icon_128x128@2x.png"),
+            (256, "icon_256x256.png"),
+            (512, "icon_256x256@2x.png"),
+            (512, "icon_512x512.png"),
+            (1024, "icon_512x512@2x.png"),
+        ]
+        for pixels, name in sizes:
+            result = subprocess.run(
+                [sips, "-z", str(pixels), str(pixels), str(source), "--out", str(iconset / name)],
+                text=True,
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                return {
+                    "installed": False,
+                    "reason": "sips failed",
+                    "source": str(source),
+                    "stderr": result.stderr.strip() or None,
+                    "stdout": result.stdout.strip() or None,
+                }
+        temp_icns = resources / f"{MACOS_NOTIFIER_ICON}.{Path(iconset_name).name}.icns"
+        result = subprocess.run([iconutil, "-c", "icns", str(iconset), "-o", str(temp_icns)], text=True, capture_output=True)
         if result.returncode != 0:
             return {
                 "installed": False,
-                "reason": "sips failed",
+                "reason": "iconutil failed",
                 "source": str(source),
                 "stderr": result.stderr.strip() or None,
                 "stdout": result.stdout.strip() or None,
             }
-    result = subprocess.run([iconutil, "-c", "icns", str(iconset), "-o", str(icns)], text=True, capture_output=True)
-    if result.returncode != 0:
-        return {
-            "installed": False,
-            "reason": "iconutil failed",
-            "source": str(source),
-            "stderr": result.stderr.strip() or None,
-            "stdout": result.stdout.strip() or None,
-        }
-    shutil.rmtree(iconset, ignore_errors=True)
+        temp_icns.replace(icns)
     return {"installed": True, "source": str(source), "icns": str(icns)}
 
 
@@ -272,15 +273,12 @@ def build_macos_notification_command(message, notifier_app=None):
             "--args",
             "--title",
             title,
-            "--subtitle",
-            str(message["id"]),
             "--body",
             body,
         ]
     script = (
         f'display notification "{_escape_applescript(body)}" '
-        f'with title "{_escape_applescript(title)}" '
-        f'subtitle "{_escape_applescript(message["id"])}"'
+        f'with title "{_escape_applescript(title)}"'
     )
     return ["osascript", "-e", script]
 

@@ -435,7 +435,8 @@ class AgentNotifyCliTest(unittest.TestCase):
         command = notifications.build_macos_notification_command(message, notifier_app=notifier_app)
         self.assertEqual(command[:6], ["open", "-W", "-gj", "-n", str(notifier_app), "--args"])
         self.assertIn("--title", command)
-        self.assertIn("--subtitle", command)
+        self.assertNotIn("--subtitle", command)
+        self.assertNotIn(message["id"], command)
         self.assertIn("--body", command)
 
     def test_notify_main_agent_falls_back_to_osascript_without_macos_helper_app(self):
@@ -446,6 +447,8 @@ class AgentNotifyCliTest(unittest.TestCase):
         command = notifications.build_macos_notification_command(message, notifier_app=None)
         self.assertEqual(command[0], "osascript")
         self.assertIn("display notification", command[2])
+        self.assertNotIn("subtitle", command[2])
+        self.assertNotIn(message["id"], command[2])
 
     def test_macos_notifier_app_bundle_is_hidden_background_app(self):
         sys.path.insert(0, str(ROOT))
@@ -505,7 +508,7 @@ class AgentNotifyCliTest(unittest.TestCase):
             if command[0] == "/usr/bin/swiftc":
                 Path(command[-1]).write_text("#!/bin/sh\n", encoding="utf-8")
             if command[0] == "/usr/bin/iconutil":
-                (app_dir / "Contents" / "Resources" / "agent-notify.icns").write_bytes(b"icns")
+                Path(command[-1]).write_bytes(b"icns")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
         with mock.patch("agent_mail.notifications.shutil.which") as which, mock.patch(
