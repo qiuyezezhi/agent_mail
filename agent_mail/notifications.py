@@ -209,6 +209,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 }
 
+final class CardVisualEffectView: NSVisualEffectView {
+    override var allowsVibrancy: Bool {
+        return true
+    }
+}
+
 func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor = .labelColor) -> NSTextField {
     let view = NSTextField(labelWithString: text)
     view.font = .systemFont(ofSize: size, weight: weight)
@@ -219,12 +225,13 @@ func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor 
     return view
 }
 
-func cardView() -> NSView {
-    let view = NSVisualEffectView()
-    view.material = .hudWindow
+func cardView() -> NSVisualEffectView {
+    let view = CardVisualEffectView()
+    view.material = .popover
     view.blendingMode = .withinWindow
     view.state = .active
     view.isEmphasized = true
+    view.appearance = NSAppearance(named: .aqua)
     view.translatesAutoresizingMaskIntoConstraints = false
     view.wantsLayer = true
     view.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.34).cgColor
