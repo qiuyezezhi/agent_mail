@@ -8,7 +8,6 @@ import uuid
 from .constants import SUPPORTED_AGENT_TYPES
 from .errors import NotifyError
 from .messages import load_message
-from .messages import mark_message_read
 from .notifications import notify_main_agent
 from .paths import logs_dir, messages_dir, repo_notify_root
 from .registry import agent_type, is_main_agent, load_agent_records
@@ -18,6 +17,8 @@ from .utils import parse_agent_names, print_json
 from .watcher_state import (
     claude_conversation_is_missing,
     clear_retry_failure,
+    notification_was_delivered,
+    record_notification_delivered,
     record_retry_failure,
     retry_backoff,
     session_resume_lock,
@@ -139,6 +140,11 @@ def watch_once(root, agents, timeout_seconds):
             )
             continue
         if is_main_agent(root, agent):
+            if notification_was_delivered(root, message["id"]):
+                report["skipped"].append(
+                    {"agent": agent, "message_id": message["id"], "reason": "notification already delivered"}
+                )
+                continue
             try:
                 notification = notify_main_agent(message)
             except NotifyError as exc:
@@ -153,7 +159,7 @@ def watch_once(root, agents, timeout_seconds):
                     }
                 )
             else:
-                mark_message_read(root, agent, message["id"])
+                record_notification_delivered(root, message["id"], agent)
                 clear_retry_failure(root, message["id"])
                 item = {"agent": agent, "message_id": message["id"], "platform": notification["platform"]}
                 if notification.get("notifier"):

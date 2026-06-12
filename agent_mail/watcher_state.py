@@ -16,17 +16,19 @@ from .utils import process_is_alive
 def load_watcher_state(root):
     path = watcher_state_path(root)
     if not path.exists():
-        return {"in_flight": {}, "retries": {}}
+        return {"in_flight": {}, "retries": {}, "delivered_notifications": {}}
     data = read_json(path)
     if (
         not isinstance(data, dict)
         or not isinstance(data.get("in_flight", {}), dict)
         or not isinstance(data.get("retries", {}), dict)
+        or not isinstance(data.get("delivered_notifications", {}), dict)
     ):
         raise NotifyError(f"{path}: invalid watcher state")
     return {
         "in_flight": data.get("in_flight", {}),
         "retries": data.get("retries", {}),
+        "delivered_notifications": data.get("delivered_notifications", {}),
     }
 
 def save_watcher_state(root, state):
@@ -63,6 +65,27 @@ def clear_retry_failure(root, message_id):
         if message_id in state["retries"]:
             state["retries"].pop(message_id, None)
             save_watcher_state(root, state)
+
+def clear_notification_delivered(root, message_id):
+    with write_lock(root):
+        state = load_watcher_state(root)
+        if message_id in state["delivered_notifications"]:
+            state["delivered_notifications"].pop(message_id, None)
+            save_watcher_state(root, state)
+
+def notification_was_delivered(root, message_id):
+    with write_lock(root):
+        state = load_watcher_state(root)
+        return message_id in state["delivered_notifications"]
+
+def record_notification_delivered(root, message_id, agent):
+    with write_lock(root):
+        state = load_watcher_state(root)
+        state["delivered_notifications"][message_id] = {
+            "agent": agent,
+            "delivered_at": now_iso(),
+        }
+        save_watcher_state(root, state)
 
 def claude_conversation_is_missing(result):
     output = f"{result.stderr}\n{result.stdout}"

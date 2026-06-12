@@ -571,10 +571,17 @@ class AgentNotifyCliTest(unittest.TestCase):
         notify.assert_called_once()
         self.assertEqual(output["notified"][0]["agent"], "codex-main")
         inbox = self.parse_json(self.cli("inbox", "--agent", "codex-main"))
-        self.assertEqual(inbox[0]["status"], "read")
+        self.assertEqual(inbox[0]["status"], "unread")
+
+        state = json.loads((self.repo / ".agent-notify" / "watcher-state.json").read_text(encoding="utf-8"))
+        self.assertIn(inbox[0]["id"], state["delivered_notifications"])
 
         second = watcher.watch_once(self.repo / ".agent-notify", ["codex-main"], 1800)
         self.assertEqual(second["notified"], [])
+
+        self.cli("handle", "--agent", "codex-main", inbox[0]["id"], "--note", "done")
+        state = json.loads((self.repo / ".agent-notify" / "watcher-state.json").read_text(encoding="utf-8"))
+        self.assertNotIn(inbox[0]["id"], state["delivered_notifications"])
 
     def test_watch_default_agent_list_includes_main_agent_for_notifications(self):
         self.cli("register", "codex-main", "--type", "codex", "--main")
@@ -1184,6 +1191,8 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("source session id: codex-session-1", prompt)
         self.assertIn("read --agent claude", prompt)
         self.assertIn("handle --agent claude", prompt)
+        inbox = self.parse_json(self.cli("inbox", "--agent", "claude"))
+        self.assertEqual(inbox[0]["status"], "unread")
 
     def test_watch_uses_latest_project_session_from_claude_history(self):
         self.cli("register", "codex", "--main")

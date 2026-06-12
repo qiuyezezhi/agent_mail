@@ -10,7 +10,7 @@ from .paths import archive_dir, messages_dir, repo_notify_root
 from .registry import require_agent
 from .storage import atomic_write_json, ensure_dirs, load_state, now_iso, read_json, save_state, write_lock
 from .utils import print_json
-from .watcher_state import clear_retry_failure
+from .watcher_state import clear_notification_delivered, clear_retry_failure
 
 
 def message_path(root, message_id, include_archive=True):
@@ -165,4 +165,5 @@ def command_handle(args):
         atomic_write_json(archive_path, message)
         path.unlink()
     clear_retry_failure(root, args.message_id)
+    clear_notification_delivered(root, args.message_id)
     print_json(message)
