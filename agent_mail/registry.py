@@ -14,15 +14,27 @@ def load_agents(root):
     return [record["name"] for record in load_agent_records(root)]
 
 
+def infer_legacy_agent_type(name, agent_type):
+    if isinstance(agent_type, str):
+        return agent_type
+    if isinstance(name, str):
+        lowered = name.lower()
+        if lowered in SUPPORTED_AGENT_TYPES:
+            return lowered
+    return agent_type
+
+
 def normalize_agent_record(entry):
     if isinstance(entry, str):
         agent_type = entry if entry in SUPPORTED_AGENT_TYPES else None
         return {"name": entry, "type": agent_type, "main": False}
     if isinstance(entry, dict):
         name = entry.get("name")
-        agent_type = entry.get("type")
+        agent_type = infer_legacy_agent_type(name, entry.get("type"))
         main = entry.get("main", False)
-        if isinstance(name, str) and isinstance(agent_type, str) and isinstance(main, bool):
+        if isinstance(name, str) and isinstance(main, bool) and (
+            isinstance(agent_type, str) or agent_type is None
+        ):
             return {"name": name, "type": agent_type, "main": main}
     raise NotifyError("invalid agents registry")
 
@@ -62,7 +74,11 @@ def load_agent_records(root):
 
 def save_agent_records(root, records):
     records_by_name = {
-        record["name"]: {"name": record["name"], "type": record["type"], "main": bool(record["main"])}
+        record["name"]: {
+            "name": record["name"],
+            "type": infer_legacy_agent_type(record["name"], record["type"]),
+            "main": bool(record["main"]),
+        }
         for record in records
     }
     atomic_write_json(

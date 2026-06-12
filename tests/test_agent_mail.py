@@ -107,6 +107,18 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(send_help["parameters"]["--to"], "Required recipient agent name.")
         self.assertIn("--source-session-id", send_help["parameters"])
 
+    def test_argparse_help_includes_command_and_parameter_descriptions(self):
+        top = self.cli("--help")
+        self.assertIn("register", top.stdout)
+        self.assertIn("Register an agent inbox name", top.stdout)
+        self.assertIn("watch", top.stdout)
+        self.assertIn("Run or manage the background watcher", top.stdout)
+
+        register = self.cli("register", "--help")
+        self.assertIn("Register an agent inbox name", register.stdout)
+        self.assertIn("Required inbox address", register.stdout)
+        self.assertIn("Mark this agent as the single global main-agent", register.stdout)
+
     def write_claude_session(self, home, session_id, content="{}\n", mtime=1):
         project_key = str(self.repo.resolve()).replace(os.sep, "-")
         sessions = home / ".claude" / "projects" / project_key
@@ -299,8 +311,35 @@ class AgentNotifyCliTest(unittest.TestCase):
         result = self.cli("lint", ok=False)
         self.assertIn("missing main-agent", result.stderr)
 
+    def test_set_main_migrates_legacy_null_type_records(self):
+        notify = self.repo / ".agent-notify"
+        notify.mkdir()
+        (notify / "agents.json").write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "agents": [
+                        {"name": "Reasonix", "type": None, "main": False},
+                        {"name": "codex", "type": "codex", "main": False},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        output = self.parse_json(self.cli("set-main", "codex"))
+        self.assertEqual(output, {"main_agent": "codex", "updated": True})
+        details = self.parse_json(self.cli("agents", "--details"))
+        self.assertEqual(
+            details,
+            [
+                {"name": "Reasonix", "type": "reasonix", "main": False},
+                {"name": "codex", "type": "codex", "main": True},
+            ],
+        )
+
     def test_notify_main_agent_builds_macos_notification_command(self):
-        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        sys.path.insert(0, str(ROOT))
         from agent_mail import notifications
 
         message = {"id": "123", "from": "worker", "to": "codex-main", "subject": "Review", "body": "Body"}
@@ -309,7 +348,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("display notification", command[2])
 
     def test_notify_main_agent_builds_windows_notification_command(self):
-        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        sys.path.insert(0, str(ROOT))
         from agent_mail import notifications
 
         message = {"id": "123", "from": "worker", "to": "codex-main", "subject": "Review", "body": "Body"}
@@ -320,7 +359,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.cli("register", "codex-main", "--type", "codex", "--main")
         self.cli("send", "--from", "codex-main", "--to", "codex-main", "--subject", "Review", "--body", "Body")
 
-        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        sys.path.insert(0, str(ROOT))
         from agent_mail import watcher
 
         with mock.patch("agent_mail.watcher.notify_main_agent", return_value={"platform": "macos"}) as notify:
@@ -337,7 +376,7 @@ class AgentNotifyCliTest(unittest.TestCase):
             self.cli("send", "--from", "codex-main", "--to", "codex-main", "--subject", "Review", "--body", "Body")
         )
 
-        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        sys.path.insert(0, str(ROOT))
         from agent_mail import watcher
         from agent_mail.errors import NotifyError
 
@@ -441,7 +480,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("`send` only queues", output["rules"])
 
     def test_setup_direnv_installs_and_hooks_zsh_on_macos(self):
-        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        sys.path.insert(0, str(ROOT))
         from agent_mail import direnv_setup
 
         home = Path(self.tmp.name) / "home"
@@ -479,7 +518,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertTrue(status["hook_present"])
 
     def test_setup_direnv_installs_and_hooks_powershell_on_windows(self):
-        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        sys.path.insert(0, str(ROOT))
         from agent_mail import direnv_setup
 
         home = Path(self.tmp.name) / "home"
@@ -1660,7 +1699,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn(["unload", str(plist_path)], calls)
 
     def test_windows_task_scheduler_backend_writes_launcher_and_uses_schtasks(self):
-        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        sys.path.insert(0, str(ROOT))
         from agent_mail import windows
 
         root = self.repo / ".agent-notify"

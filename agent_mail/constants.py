@@ -51,6 +51,12 @@ HELP_INTERFACES = {
             "<agent-name>": "Required registered agent name that will become the new main-agent.",
         },
     },
+    "help": {
+        "purpose": "Print machine-readable JSON help for agent and script usage.",
+        "parameters": {
+            "<topic>": "Optional command topic, for example send or watch run.",
+        },
+    },
     "send": {
         "purpose": "Queue a notification for a registered agent.",
         "parameters": {
