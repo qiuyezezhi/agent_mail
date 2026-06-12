@@ -112,22 +112,8 @@ def watch_log(root, message):
     with (logs_dir(root) / "watcher.log").open("a", encoding="utf-8") as fh:
         fh.write(f"{now_iso()} {message}\n")
 
-def watch_once(root, agents, timeout_seconds):
-    project_root = root.parent.resolve()
-    report = {"attempted": [], "failed": [], "skipped": [], "notified": []}
-    for agent in agents:
-        try:
-            agent_type_value = agent_type(root, agent)
-        except NotifyError as exc:
-            report["skipped"].append({"agent": agent, "reason": str(exc)})
-            continue
-        if agent_type_value not in SUPPORTED_AGENT_TYPES:
-            report["skipped"].append({"agent": agent, "reason": "unsupported agent type"})
-            continue
-        messages = unread_messages_for_agent(root, agent)
-        if not messages:
-            continue
-        message = messages[0]
+def next_deliverable_message(root, agent, messages, report):
+    for message in messages:
         retry = retry_backoff(root, message["id"])
         if retry:
             report["skipped"].append(
@@ -143,6 +129,27 @@ def watch_once(root, agents, timeout_seconds):
             report["skipped"].append(
                 {"agent": agent, "message_id": message["id"], "reason": "notification already delivered"}
             )
+            continue
+        return message
+    return None
+
+def watch_once(root, agents, timeout_seconds):
+    project_root = root.parent.resolve()
+    report = {"attempted": [], "failed": [], "skipped": [], "notified": []}
+    for agent in agents:
+        try:
+            agent_type_value = agent_type(root, agent)
+        except NotifyError as exc:
+            report["skipped"].append({"agent": agent, "reason": str(exc)})
+            continue
+        if agent_type_value not in SUPPORTED_AGENT_TYPES:
+            report["skipped"].append({"agent": agent, "reason": "unsupported agent type"})
+            continue
+        messages = unread_messages_for_agent(root, agent)
+        if not messages:
+            continue
+        message = next_deliverable_message(root, agent, messages, report)
+        if message is None:
             continue
         if is_main_agent(root, agent):
             try:

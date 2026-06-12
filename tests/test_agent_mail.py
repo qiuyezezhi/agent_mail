@@ -582,8 +582,14 @@ class AgentNotifyCliTest(unittest.TestCase):
         state = json.loads((self.repo / ".agent-notify" / "watcher-state.json").read_text(encoding="utf-8"))
         self.assertIn(inbox[0]["id"], state["delivered_notifications"])
 
-        second = watcher.watch_once(self.repo / ".agent-notify", ["codex-main"], 1800)
-        self.assertEqual(second["notified"], [])
+        repeated = watcher.watch_once(self.repo / ".agent-notify", ["codex-main"], 1800)
+        self.assertEqual(repeated["notified"], [])
+
+        next_message = self.parse_json(
+            self.cli("send", "--from", "codex-main", "--to", "codex-main", "--subject", "Next", "--body", "Next body")
+        )
+        next_output = watcher.watch_once(self.repo / ".agent-notify", ["codex-main"], 1800)
+        self.assertEqual(next_output["notified"][0]["message_id"], next_message["id"])
 
         self.cli("handle", "--agent", "codex-main", inbox[0]["id"], "--note", "done")
         state = json.loads((self.repo / ".agent-notify" / "watcher-state.json").read_text(encoding="utf-8"))
