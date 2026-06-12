@@ -136,7 +136,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("cli.py", entrypoint.read_text(encoding="utf-8"))
         self.assertNotIn("print('old')", entrypoint.read_text(encoding="utf-8"))
 
-    def test_update_restarts_installed_launchd_watcher_preserving_config(self):
+    def test_update_restarts_installed_launchd_watcher_clearing_legacy_agent_filter(self):
         sys.path.insert(0, str(ROOT))
         from agent_mail import launchd, update_project, watch_service
 
@@ -164,11 +164,14 @@ class AgentNotifyCliTest(unittest.TestCase):
             )
 
         self.assertTrue(output["updated"])
-        self.assertEqual(output["agents"], "claude,reasonix")
+        self.assertEqual(output["agents"], "")
         self.assertEqual(output["interval"], 7.0)
         self.assertEqual(output["timeout"], 1800.0)
         self.assertTrue(executable.is_symlink())
         self.assertEqual(Path(output["installed"]["executable"]), executable)
+        with Path(output["installed"]["plist"]).open("rb") as fh:
+            plist = plistlib.load(fh)
+        self.assertNotIn("--agents", plist["ProgramArguments"])
         self.assertGreaterEqual(
             sum(1 for call in calls if call[:1] == ["launchctl"] and "load" in call),
             2,
@@ -424,6 +427,19 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(output["notified"][0]["agent"], "codex-main")
         inbox = self.parse_json(self.cli("inbox", "--agent", "codex-main"))
         self.assertEqual(inbox[0]["status"], "unread")
+
+    def test_watch_default_agent_list_excludes_main_agent(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
+        self.cli("register", "claude-reviewer", "--type", "claude")
+        self.cli("register", "reasonix-web", "--type", "reasonix")
+
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import watcher
+
+        self.assertEqual(
+            watcher.parse_agent_list(None, self.repo / ".agent-notify"),
+            ["claude-reviewer", "reasonix-web"],
+        )
 
     def test_watch_run_once_keeps_main_agent_message_unread_on_notification_failure(self):
         self.cli("register", "codex-main", "--type", "codex", "--main")
@@ -1741,6 +1757,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(watcher_executable.name, "agent-notify-watcher")
         self.assertTrue(watcher_executable.is_symlink())
         self.assertEqual(Path(plist["ProgramArguments"][0]), watcher_executable)
+        self.assertIn("--agents", plist["ProgramArguments"])
         self.assertEqual(plist["EnvironmentVariables"]["HOME"], str(home))
         self.assertEqual(plist["EnvironmentVariables"]["PATH"], env["PATH"])
 
@@ -1757,6 +1774,25 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn(["load", str(plist_path)], calls)
         self.assertIn(["list", installed["label"]], calls)
         self.assertIn(["unload", str(plist_path)], calls)
+
+    def test_watch_install_omits_agents_filter_by_default(self):
+        self.cli("register", "codex", "--main")
+        home = Path(self.tmp.name) / "home"
+        bin_dir = Path(self.tmp.name) / "bin"
+        bin_dir.mkdir()
+        fake_launchctl = bin_dir / "launchctl"
+        fake_launchctl.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_launchctl.chmod(0o755)
+        env = os.environ.copy()
+        env["HOME"] = str(home)
+        env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+
+        installed = self.parse_json(self.cli("watch", "install", "--interval", "7", env=env))
+
+        with Path(installed["plist"]).open("rb") as fh:
+            plist = plistlib.load(fh)
+        self.assertNotIn("--agents", plist["ProgramArguments"])
+        self.assertIn("--interval", plist["ProgramArguments"])
 
     def test_watch_cleanup_removes_only_stale_launchd_plists(self):
         sys.path.insert(0, str(ROOT))
@@ -1851,6 +1887,23 @@ class AgentNotifyCliTest(unittest.TestCase):
         )
         self.assertIn(["schtasks", "/Query", "/TN", installed["label"], "/FO", "LIST", "/V"], calls)
         self.assertIn(["schtasks", "/Delete", "/TN", installed["label"], "/F"], calls)
+
+    def test_windows_watcher_launcher_omits_agents_filter_by_default(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import windows
+
+        root = self.repo / ".agent-notify"
+        root.mkdir()
+
+        with mock.patch("agent_mail.windows.sys.platform", "win32"), mock.patch(
+            "agent_mail.windows.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ):
+            installed = windows.install_watcher(root, "", 7, 1800)
+
+        launcher = Path(installed["launcher"]).read_text(encoding="utf-8")
+        self.assertNotIn("'--agents'", launcher)
+        self.assertIn("'--interval'", launcher)
 
     def test_watch_cleanup_removes_only_stale_windows_tasks(self):
         sys.path.insert(0, str(ROOT))

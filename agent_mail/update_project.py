@@ -42,7 +42,7 @@ def update_watcher(root, args):
     if not status.get("installed"):
         return {"checked": True, "updated": False, "reason": "watcher not installed", "before": status}
 
-    agents = args.watch_agents if args.watch_agents is not None else status.get("agents", "")
+    agents = args.watch_agents if args.watch_agents is not None else ""
     interval = args.interval if args.interval is not None else status.get("interval", 5)
     timeout = args.timeout if args.timeout is not None else status.get("timeout", 1800)
     removed = uninstall_watcher(root, remove_executable=False)

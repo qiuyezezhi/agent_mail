@@ -17,7 +17,7 @@ HELP_INTERFACES = {
             "--agents": "Optional comma-separated name:type registrations, for example claude-reviewer:claude.",
             "--no-gitignore": "Do not add .agent-notify/ to .gitignore.",
             "--install-watcher": "Install the background watcher after initialization.",
-            "--watch-agents": "Comma-separated agent names monitored by watcher install.",
+            "--watch-agents": "Advanced watcher filter used with --install-watcher. Omit to monitor all non-main watchable agents.",
             "--interval": "Watcher polling interval in seconds. Default: 5.",
             "--timeout": "Per resume command timeout in seconds. Default: 1800.",
             "--setup-direnv": "Install and configure direnv for the current platform shell before finalizing init.",
@@ -30,7 +30,7 @@ HELP_INTERFACES = {
             "--no-gitignore": "Do not add .agent-notify/ to .gitignore.",
             "--no-direnv": "Skip direnv allow even when direnv is available.",
             "--no-watch": "Skip watcher status checks and restart.",
-            "--watch-agents": "Override watcher agents when reinstalling an already installed watcher.",
+            "--watch-agents": "Advanced watcher filter override when reinstalling an already installed watcher.",
             "--interval": "Override watcher polling interval when reinstalling.",
             "--timeout": "Override per resume command timeout when reinstalling.",
         },
@@ -114,7 +114,7 @@ HELP_INTERFACES = {
     "watch run": {
         "purpose": "Run the watcher in the foreground.",
         "parameters": {
-            "--agents": "Optional comma-separated agent names to monitor. Omit to monitor all watchable registered agents.",
+            "--agents": "Optional comma-separated agent names to monitor. Omit to monitor all non-main watchable registered agents.",
             "--interval": "Polling interval in seconds. Default: 5.",
             "--timeout": "Per resume command timeout in seconds. Default: 1800.",
             "--once": "Run one scan and exit.",
@@ -123,7 +123,7 @@ HELP_INTERFACES = {
     "watch install": {
         "purpose": "Install the watcher as a platform user background service.",
         "parameters": {
-            "--agents": "Optional comma-separated agent names to monitor.",
+            "--agents": "Optional advanced filter. Omit to monitor all non-main watchable registered agents.",
             "--interval": "Polling interval in seconds. Default: 5.",
             "--timeout": "Per resume command timeout in seconds. Default: 1800.",
         },

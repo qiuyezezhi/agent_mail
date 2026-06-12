@@ -41,13 +41,10 @@ def _build_launcher(root, agents, interval, timeout):
     args = [
         "watch",
         "run",
-        "--agents",
-        agents,
-        "--interval",
-        format_number(interval),
-        "--timeout",
-        format_number(timeout),
     ]
+    if agents:
+        args.extend(["--agents", agents])
+    args.extend(["--interval", format_number(interval), "--timeout", format_number(timeout)])
     lines = [
         "$ErrorActionPreference = 'Stop'",
         f"$tool = '{_quote_powershell(script_path)}'",

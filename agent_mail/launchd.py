@@ -58,20 +58,18 @@ def install_watcher(root, agents, interval, timeout):
     log_path = logs_dir(root) / "watcher.log"
     script_path = Path(sys.argv[0]).resolve()
     watcher_executable = ensure_watcher_executable(root)
+    program_arguments = [
+        str(watcher_executable),
+        str(script_path),
+        "watch",
+        "run",
+    ]
+    if agents:
+        program_arguments.extend(["--agents", agents])
+    program_arguments.extend(["--interval", format_number(interval), "--timeout", format_number(timeout)])
     plist = {
         "Label": label,
-        "ProgramArguments": [
-            str(watcher_executable),
-            str(script_path),
-            "watch",
-            "run",
-            "--agents",
-            agents,
-            "--interval",
-            format_number(interval),
-            "--timeout",
-            format_number(timeout),
-        ],
+        "ProgramArguments": program_arguments,
         "WorkingDirectory": str(root.parent),
         "RunAtLoad": True,
         "KeepAlive": True,

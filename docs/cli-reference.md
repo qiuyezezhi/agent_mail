@@ -137,7 +137,7 @@ agent-notify init [options]
 | `--agents <csv>` | 否 | 初始化时顺便注册 agent，格式 `name:type,name:type` |
 | `--no-gitignore` | 否 | 不维护 `.gitignore` |
 | `--install-watcher` | 否 | 初始化后安装 watcher |
-| `--watch-agents <csv>` | 否 | 配合 `--install-watcher`，指定 watcher 监控的 agent name |
+| `--watch-agents <csv>` | 否 | 高级过滤项；配合 `--install-watcher` 覆盖默认的非 main agent 监控范围 |
 | `--interval <seconds>` | 否 | watcher 轮询间隔，默认 `5` |
 | `--timeout <seconds>` | 否 | 单次 resume 命令超时，默认 `1800` |
 | `--setup-direnv` | 否 | 先为当前平台安装并接通 `direnv`，再继续初始化 |
@@ -164,7 +164,7 @@ agent-notify init [options]
 ```bash
 agent-notify init
 agent-notify init --agents codex-main:codex,claude-reviewer:claude
-agent-notify init --install-watcher --watch-agents claude-reviewer
+agent-notify init --install-watcher
 ```
 
 输出字段：
@@ -202,7 +202,7 @@ agent-notify update [options]
 | `--no-gitignore` | 否 | 不维护 `.gitignore` |
 | `--no-direnv` | 否 | 跳过 `direnv allow` |
 | `--no-watch` | 否 | 跳过 watcher 检查和重启 |
-| `--watch-agents <csv>` | 否 | 重装已安装 watcher 时覆盖 agent 列表 |
+| `--watch-agents <csv>` | 否 | 高级过滤项；重装已安装 watcher 时覆盖默认 agent 列表 |
 | `--interval <seconds>` | 否 | 重装已安装 watcher 时覆盖轮询间隔 |
 | `--timeout <seconds>` | 否 | 重装已安装 watcher 时覆盖单次 resume 超时 |
 
@@ -221,7 +221,7 @@ agent-notify update [options]
 ```bash
 agent-notify update
 agent-notify update --no-watch
-agent-notify update --watch-agents claude-reviewer,reasonix-web --interval 5
+agent-notify update --interval 5
 ```
 
 输出字段：
@@ -528,7 +528,7 @@ agent-notify watch run [--agents <csv>] [--interval <seconds>] [--timeout <secon
 
 | 参数 | 必需 | 作用 |
 | --- | --- | --- |
-| `--agents <csv>` | 否 | 要监控的 agent name 列表；省略时监控所有支持 watcher 的已注册 agent |
+| `--agents <csv>` | 否 | 高级过滤项；省略时监控所有非 main 且支持 watcher 的已注册 agent |
 | `--interval <seconds>` | 否 | 轮询间隔，默认 `5` |
 | `--timeout <seconds>` | 否 | 单次 resume 超时，默认 `1800` |
 | `--once` | 否 | 只扫描一轮，用于测试 |
@@ -559,7 +559,7 @@ agent-notify watch run [--agents <csv>] [--interval <seconds>] [--timeout <secon
 agent-notify watch install [--agents <csv>] [--interval <seconds>] [--timeout <seconds>]
 ```
 
-参数同 `watch run`。
+默认不需要 `--agents`；省略时 watcher 监控所有非 main 且支持唤醒的已注册 agent。`--agents` 只作为高级过滤项使用。
 
 平台行为：
 

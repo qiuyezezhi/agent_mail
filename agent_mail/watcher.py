@@ -60,7 +60,7 @@ def build_resume_command(agent_type_value, session, prompt, project_root):
             "--add-dir",
             str(project_root),
             "--allowedTools",
-            "Read,Grep,Glob,Bash(git *),Bash(agent-notify *),Bash(python3 -m unittest tests/test_agent_mail.py),Bash(agent-notify lint)",
+            "Read,Grep,Glob,Bash(git *),Bash(agent-notify *),Bash(python3 -m unittest tools/agent_mail/tests/test_agent_mail.py),Bash(agent-notify lint)",
             "--max-turns",
             "60",
             "--output-format",
@@ -83,7 +83,7 @@ def build_claude_new_session_command(session_id, prompt, project_root):
         "--add-dir",
         str(project_root),
         "--allowedTools",
-        "Read,Grep,Glob,Bash(git *),Bash(agent-notify *),Bash(python3 -m unittest tests/test_agent_mail.py),Bash(agent-notify lint)",
+        "Read,Grep,Glob,Bash(git *),Bash(agent-notify *),Bash(python3 -m unittest tools/agent_mail/tests/test_agent_mail.py),Bash(agent-notify lint)",
         "--max-turns",
         "60",
         "--output-format",
@@ -103,7 +103,11 @@ def unread_messages_for_agent(root, agent):
 def parse_agent_list(value, root):
     if value:
         return parse_agent_names(value)
-    return [record["name"] for record in load_agent_records(root) if record["type"] in SUPPORTED_AGENT_TYPES]
+    return [
+        record["name"]
+        for record in load_agent_records(root)
+        if record["type"] in SUPPORTED_AGENT_TYPES and not record.get("main", False)
+    ]
 
 def watch_log(root, message):
     ensure_dirs(root)

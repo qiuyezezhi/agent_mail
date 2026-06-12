@@ -80,7 +80,7 @@ agent-notify read --agent <agent> <message-id>
 agent-notify handle --agent <agent> <message-id> --note <note>
 agent-notify sent --agent <agent>
 agent-notify lint
-agent-notify watch install --agents <agent-name>,<agent-name>
+agent-notify watch install
 agent-notify watch status
 agent-notify watch cleanup --dry-run
 agent-notify watch run --once --agents <agent-name>
@@ -220,13 +220,13 @@ agent-notify register reasonix-web --type reasonix
 agent-notify set-main claude-reviewer
 ```
 
-5. 需要自动唤醒时安装 watcher：
+5. 需要自动唤醒非 main agent 时安装 watcher：
 
 ```bash
-agent-notify watch install --agents claude-reviewer,reasonix-web
+agent-notify watch install
 ```
 
-`watch install` 会按当前平台安装后台 watcher：
+`watch install` 会按当前平台安装后台 watcher。默认监控所有非 main 且支持唤醒的已注册 agent：
 
 - macOS：使用 `launchd`
 - Windows：使用 Task Scheduler
@@ -236,7 +236,7 @@ agent-notify watch install --agents claude-reviewer,reasonix-web
 如果当前平台不支持后台安装，仍然可以用前台方式：
 
 ```powershell
-agent-notify watch run --agents claude-reviewer,reasonix-web --interval 5
+agent-notify watch run --interval 5
 ```
 
 如果后台启动项列表里出现历史残留，先预览清理范围：

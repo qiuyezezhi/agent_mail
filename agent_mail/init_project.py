@@ -77,9 +77,7 @@ def ensure_project_entrypoint(project_root, force=False):
     updated = False
     for name, content in scripts.items():
         path = bin_dir / name
-        if path.exists() and not force:
-            continue
-        if path.exists() and path.read_text(encoding="utf-8", errors="ignore") == content:
+        if path.exists() and (not force or path.read_text(encoding="utf-8") == content):
             continue
         atomic_write_bytes(path, content.encode("utf-8"))
         if "." not in name:
@@ -106,7 +104,7 @@ def allow_direnv(project_root, executable=None):
         return {
             "available": True,
             "allowed": True,
-            "reason": "direnv allow succeeded",
+            "reason": "direnv allowed",
             "stdout": output or None,
         }
     return {
@@ -209,13 +207,12 @@ def command_init(args):
         "registered_agents": registered,
         "watcher": watcher,
         "next_steps": [
-            "agent-notify setup-direnv",
             "agent-notify update",
-            "agent-notify register <agent-name> --type <codex|claude|reasonix> --main",
+            "agent-notify setup-direnv",
             "agent-notify register <agent-name> --type <codex|claude|reasonix>",
             "agent-notify lint",
             "agent-notify inbox --agent <agent>",
-            "agent-notify watch install --agents <agent-name>,<agent-name>",
+            "agent-notify watch install",
         ],
     }
     if args.print_agent_rules:
