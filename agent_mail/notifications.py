@@ -157,17 +157,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let route = label("From \(details.sender) to \(details.recipient)", size: 13, weight: .regular, color: .secondaryLabelColor)
         let messageID = label("Message ID: \(details.messageID)", size: 12, weight: .regular, color: .tertiaryLabelColor)
         let body = textView(details.body)
-        let copy = NSButton(title: "Copy read command", target: self, action: #selector(copyReadCommand))
-        copy.bezelStyle = .rounded
-        let close = NSButton(title: "Close", target: self, action: #selector(closeCard))
-        close.bezelStyle = .rounded
 
-        let buttons = NSStackView(views: [copy, close])
-        buttons.orientation = .horizontal
-        buttons.alignment = .centerY
-        buttons.spacing = 8
-
-        let stack = NSStackView(views: [title, route, messageID, body, buttons])
+        let stack = NSStackView(views: [title, route, messageID, body])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
@@ -187,16 +178,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         panel = card
         card.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-    }
-
-    @objc private func copyReadCommand() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString("agent-notify read --agent \(details.recipient) \(details.messageID)", forType: .string)
-    }
-
-    @objc private func closeCard() {
-        panel?.close()
     }
 
     private func scheduleQuit(after seconds: TimeInterval) {
