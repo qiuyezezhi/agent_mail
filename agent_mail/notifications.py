@@ -140,13 +140,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let card = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 580, height: 400),
-            styleMask: [.titled, .closable, .utilityWindow],
+            styleMask: [.titled, .closable, .utilityWindow, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         card.title = "agent-notify"
+        card.titleVisibility = .hidden
+        card.titlebarAppearsTransparent = true
         card.isReleasedWhenClosed = false
         card.hidesOnDeactivate = false
+        card.backgroundColor = .clear
+        card.isOpaque = false
+        card.isMovableByWindowBackground = true
         card.delegate = self
         card.level = .floating
         card.center()
@@ -154,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let content = NSView(frame: card.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 580, height: 400))
         content.translatesAutoresizingMaskIntoConstraints = false
         content.wantsLayer = true
-        content.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.92).cgColor
+        content.layer?.backgroundColor = NSColor.clear.cgColor
         let cardSurface = cardView()
 
         let accent = accentView()
@@ -177,13 +182,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         content.addSubview(cardSurface)
         card.contentView = content
         NSLayoutConstraint.activate([
-            cardSurface.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 22),
-            cardSurface.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -22),
-            cardSurface.topAnchor.constraint(equalTo: content.topAnchor, constant: 22),
-            cardSurface.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -22),
+            cardSurface.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            cardSurface.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            cardSurface.topAnchor.constraint(equalTo: content.topAnchor),
+            cardSurface.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: cardSurface.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: cardSurface.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: cardSurface.topAnchor, constant: 24),
+            stack.topAnchor.constraint(equalTo: cardSurface.topAnchor, constant: 44),
             stack.bottomAnchor.constraint(equalTo: cardSurface.bottomAnchor, constant: -22),
             accent.widthAnchor.constraint(equalToConstant: 72),
             accent.heightAnchor.constraint(equalToConstant: 4),
