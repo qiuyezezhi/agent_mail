@@ -12,6 +12,9 @@ MACOS_NOTIFIER_BUNDLE_ID = "dev.dplake.agent-notify.notifier"
 MACOS_NOTIFIER_APP_NAME = "agent-notify"
 MACOS_NOTIFIER_EXECUTABLE = "agent-notify-notifier"
 MACOS_NOTIFIER_ICON = "agent-notify"
+MACOS_LSREGISTER = (
+    "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+)
 
 MACOS_NOTIFIER_SWIFT = r'''
 import Foundation
@@ -165,6 +168,29 @@ def install_macos_notifier_icon(app_dir, source_icon=None):
     return {"installed": True, "source": str(source), "icns": str(icns)}
 
 
+def find_lsregister():
+    path = Path(MACOS_LSREGISTER)
+    if path.exists():
+        return str(path)
+    return shutil.which("lsregister")
+
+
+def register_macos_notifier_app(app_dir):
+    Path(app_dir).touch()
+    lsregister = find_lsregister()
+    if lsregister is None:
+        return {"registered": False, "reason": "lsregister not found"}
+    result = subprocess.run([lsregister, "-f", str(app_dir)], text=True, capture_output=True)
+    if result.returncode != 0:
+        return {
+            "registered": False,
+            "reason": "lsregister failed",
+            "stderr": result.stderr.strip() or None,
+            "stdout": result.stdout.strip() or None,
+        }
+    return {"registered": True}
+
+
 def install_macos_notifier_app(app_dir=None):
     if sys.platform != "darwin":
         return {"installed": False, "reason": "unsupported platform"}
@@ -211,7 +237,14 @@ def install_macos_notifier_app(app_dir=None):
             "stderr": signed.stderr.strip() or None,
             "stdout": signed.stdout.strip() or None,
         }
-    return {"installed": True, "app": str(selected_app_dir), "executable": str(executable), "icon": icon}
+    registered = register_macos_notifier_app(selected_app_dir)
+    return {
+        "installed": True,
+        "app": str(selected_app_dir),
+        "executable": str(executable),
+        "icon": icon,
+        "registered": registered,
+    }
 
 
 def ensure_macos_notifier_app():

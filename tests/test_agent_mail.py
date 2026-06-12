@@ -464,7 +464,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertNotIn("LSBackgroundOnly", info)
         self.assertTrue(info["LSUIElement"])
 
-    def test_install_macos_notifier_app_signs_bundle(self):
+    def test_install_macos_notifier_app_signs_and_registers_bundle(self):
         sys.path.insert(0, str(ROOT))
         from agent_mail import notifications
 
@@ -479,7 +479,9 @@ class AgentNotifyCliTest(unittest.TestCase):
 
         with mock.patch("agent_mail.notifications.shutil.which") as which, mock.patch(
             "agent_mail.notifications.subprocess.run", side_effect=fake_run
-        ), mock.patch("agent_mail.notifications.sys.platform", "darwin"):
+        ), mock.patch("agent_mail.notifications.sys.platform", "darwin"), mock.patch(
+            "agent_mail.notifications.find_lsregister", return_value="/usr/bin/lsregister"
+        ):
             which.side_effect = lambda name: f"/usr/bin/{name}" if name in {"swiftc", "codesign"} else None
             status = notifications.install_macos_notifier_app(app_dir)
 
@@ -487,6 +489,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(calls[0][0], "/usr/bin/swiftc")
         self.assertEqual(calls[1][:4], ["/usr/bin/codesign", "--force", "--deep", "--sign"])
         self.assertEqual(calls[1][4], "-")
+        self.assertEqual(calls[2], ["/usr/bin/lsregister", "-f", str(app_dir)])
 
     def test_install_macos_notifier_app_generates_icon_when_tools_available(self):
         sys.path.insert(0, str(ROOT))
