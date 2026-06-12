@@ -459,6 +459,7 @@ class AgentNotifyCliTest(unittest.TestCase):
 
         info = plistlib.loads((app_dir / "Contents" / "Info.plist").read_bytes())
         self.assertEqual(info["CFBundleIdentifier"], "dev.dplake.agent-notify.notifier")
+        self.assertEqual(info["CFBundleIconFile"], "agent-notify")
         self.assertEqual(info["CFBundleName"], "agent-notify")
         self.assertNotIn("LSBackgroundOnly", info)
         self.assertTrue(info["LSUIElement"])
@@ -486,6 +487,35 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(calls[0][0], "/usr/bin/swiftc")
         self.assertEqual(calls[1][:4], ["/usr/bin/codesign", "--force", "--deep", "--sign"])
         self.assertEqual(calls[1][4], "-")
+
+    def test_install_macos_notifier_app_generates_icon_when_tools_available(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import notifications
+
+        app_dir = self.repo / ".agent-notify" / "notifier" / "agent-notify.app"
+        source_icon = self.repo / "icon.png"
+        source_icon.write_bytes(b"png")
+        calls = []
+
+        def fake_run(command, **kwargs):
+            calls.append(command)
+            if command[0] == "/usr/bin/swiftc":
+                Path(command[-1]).write_text("#!/bin/sh\n", encoding="utf-8")
+            if command[0] == "/usr/bin/iconutil":
+                (app_dir / "Contents" / "Resources" / "agent-notify.icns").write_bytes(b"icns")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with mock.patch("agent_mail.notifications.shutil.which") as which, mock.patch(
+            "agent_mail.notifications.subprocess.run", side_effect=fake_run
+        ), mock.patch("agent_mail.notifications.sys.platform", "darwin"), mock.patch(
+            "agent_mail.notifications.macos_icon_source", return_value=source_icon
+        ):
+            which.side_effect = lambda name: f"/usr/bin/{name}" if name in {"swiftc", "codesign", "sips", "iconutil"} else None
+            status = notifications.install_macos_notifier_app(app_dir)
+
+        self.assertTrue(status["icon"]["installed"])
+        self.assertTrue((app_dir / "Contents" / "Resources" / "agent-notify.icns").exists())
+        self.assertIn("/usr/bin/iconutil", [command[0] for command in calls])
 
     def test_notify_main_agent_builds_windows_notification_command(self):
         sys.path.insert(0, str(ROOT))

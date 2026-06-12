@@ -11,6 +11,7 @@ from .errors import NotifyError
 MACOS_NOTIFIER_BUNDLE_ID = "dev.dplake.agent-notify.notifier"
 MACOS_NOTIFIER_APP_NAME = "agent-notify"
 MACOS_NOTIFIER_EXECUTABLE = "agent-notify-notifier"
+MACOS_NOTIFIER_ICON = "agent-notify"
 
 MACOS_NOTIFIER_SWIFT = r'''
 import Foundation
@@ -87,6 +88,10 @@ def macos_notifier_executable(app_dir):
     return Path(app_dir) / "Contents" / "MacOS" / MACOS_NOTIFIER_EXECUTABLE
 
 
+def macos_icon_source():
+    return Path(__file__).resolve().parents[1] / "assets" / "agent-notify-icon.png"
+
+
 def write_macos_notifier_bundle(app_dir, executable):
     app_dir = Path(app_dir)
     contents = app_dir / "Contents"
@@ -94,6 +99,7 @@ def write_macos_notifier_bundle(app_dir, executable):
     info = {
         "CFBundleDevelopmentRegion": "en",
         "CFBundleExecutable": Path(executable).name,
+        "CFBundleIconFile": MACOS_NOTIFIER_ICON,
         "CFBundleIdentifier": MACOS_NOTIFIER_BUNDLE_ID,
         "CFBundleInfoDictionaryVersion": "6.0",
         "CFBundleName": MACOS_NOTIFIER_APP_NAME,
@@ -105,6 +111,58 @@ def write_macos_notifier_bundle(app_dir, executable):
     }
     (contents / "Info.plist").write_bytes(plistlib.dumps(info))
     return contents / "Info.plist"
+
+
+def install_macos_notifier_icon(app_dir, source_icon=None):
+    source = Path(source_icon) if source_icon else macos_icon_source()
+    if not source.exists():
+        return {"installed": False, "reason": "source icon not found", "source": str(source)}
+    sips = shutil.which("sips")
+    iconutil = shutil.which("iconutil")
+    if sips is None or iconutil is None:
+        return {"installed": False, "reason": "icon tools not found", "source": str(source)}
+
+    resources = Path(app_dir) / "Contents" / "Resources"
+    iconset = resources / f"{MACOS_NOTIFIER_ICON}.iconset"
+    icns = resources / f"{MACOS_NOTIFIER_ICON}.icns"
+    iconset.mkdir(parents=True, exist_ok=True)
+    sizes = [
+        (16, "icon_16x16.png"),
+        (32, "icon_16x16@2x.png"),
+        (32, "icon_32x32.png"),
+        (64, "icon_32x32@2x.png"),
+        (128, "icon_128x128.png"),
+        (256, "icon_128x128@2x.png"),
+        (256, "icon_256x256.png"),
+        (512, "icon_256x256@2x.png"),
+        (512, "icon_512x512.png"),
+        (1024, "icon_512x512@2x.png"),
+    ]
+    for pixels, name in sizes:
+        result = subprocess.run(
+            [sips, "-z", str(pixels), str(pixels), str(source), "--out", str(iconset / name)],
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            return {
+                "installed": False,
+                "reason": "sips failed",
+                "source": str(source),
+                "stderr": result.stderr.strip() or None,
+                "stdout": result.stdout.strip() or None,
+            }
+    result = subprocess.run([iconutil, "-c", "icns", str(iconset), "-o", str(icns)], text=True, capture_output=True)
+    if result.returncode != 0:
+        return {
+            "installed": False,
+            "reason": "iconutil failed",
+            "source": str(source),
+            "stderr": result.stderr.strip() or None,
+            "stdout": result.stdout.strip() or None,
+        }
+    shutil.rmtree(iconset, ignore_errors=True)
+    return {"installed": True, "source": str(source), "icns": str(icns)}
 
 
 def install_macos_notifier_app(app_dir=None):
@@ -139,6 +197,7 @@ def install_macos_notifier_app(app_dir=None):
         }
     executable.chmod(0o755)
     write_macos_notifier_bundle(selected_app_dir, executable)
+    icon = install_macos_notifier_icon(selected_app_dir)
     signed = subprocess.run(
         [codesign, "--force", "--deep", "--sign", "-", str(selected_app_dir)],
         text=True,
@@ -152,7 +211,7 @@ def install_macos_notifier_app(app_dir=None):
             "stderr": signed.stderr.strip() or None,
             "stdout": signed.stdout.strip() or None,
         }
-    return {"installed": True, "app": str(selected_app_dir), "executable": str(executable)}
+    return {"installed": True, "app": str(selected_app_dir), "executable": str(executable), "icon": icon}
 
 
 def ensure_macos_notifier_app():
