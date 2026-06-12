@@ -154,15 +154,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let content = NSView(frame: card.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 560, height: 380))
         content.translatesAutoresizingMaskIntoConstraints = false
 
-        let title = label(details.subject, size: 18, weight: .semibold)
-        let route = label("From \(details.sender) to \(details.recipient)", size: 13, weight: .regular, color: .secondaryLabelColor)
-        let messageID = label("Message ID: \(details.messageID)", size: 12, weight: .regular, color: .tertiaryLabelColor)
+        let accent = accentView()
+        let title = label(details.subject, size: 20, weight: .semibold)
+        let meta = NSStackView(views: [pill("From", details.sender), pill("To", details.recipient), pill("ID", details.messageID)])
+        meta.orientation = .horizontal
+        meta.alignment = .centerY
+        meta.spacing = 8
+        meta.translatesAutoresizingMaskIntoConstraints = false
+        let messageLabel = label("Message", size: 11, weight: .medium, color: .secondaryLabelColor)
         let body = bodyView(details.body)
 
-        let stack = NSStackView(views: [title, route, messageID, body])
+        let stack = NSStackView(views: [accent, title, meta, messageLabel, body])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 12
+        stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         content.addSubview(stack)
@@ -172,8 +177,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -28),
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 26),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -24),
+            accent.widthAnchor.constraint(equalToConstant: 72),
+            accent.heightAnchor.constraint(equalToConstant: 4),
             body.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            body.heightAnchor.constraint(greaterThanOrEqualToConstant: 180),
+            body.heightAnchor.constraint(greaterThanOrEqualToConstant: 196),
         ])
 
         panel = card
@@ -199,9 +206,35 @@ func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor 
     return view
 }
 
+func accentView() -> NSView {
+    let view = NSView()
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.wantsLayer = true
+    view.layer?.backgroundColor = NSColor.systemTeal.withAlphaComponent(0.82).cgColor
+    view.layer?.cornerRadius = 2
+    return view
+}
+
+func pill(_ labelText: String, _ value: String) -> NSView {
+    let labelView = label(labelText.uppercased(), size: 10, weight: .semibold, color: .secondaryLabelColor)
+    let valueView = label(value, size: 12, weight: .medium, color: .labelColor)
+    let stack = NSStackView(views: [labelView, valueView])
+    stack.orientation = .horizontal
+    stack.alignment = .centerY
+    stack.spacing = 6
+    stack.edgeInsets = NSEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.wantsLayer = true
+    stack.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.88).cgColor
+    stack.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
+    stack.layer?.borderWidth = 1
+    stack.layer?.cornerRadius = 9
+    return stack
+}
+
 func bodyView(_ text: String) -> NSScrollView {
     let body = NSTextField(wrappingLabelWithString: text.isEmpty ? "(empty body)" : text)
-    body.font = .systemFont(ofSize: 13)
+    body.font = .systemFont(ofSize: 14)
     body.textColor = .labelColor
     body.lineBreakMode = .byWordWrapping
     body.translatesAutoresizingMaskIntoConstraints = false
@@ -211,16 +244,16 @@ func bodyView(_ text: String) -> NSScrollView {
     scroll.documentView = body
     scroll.drawsBackground = false
     scroll.wantsLayer = true
-    scroll.layer?.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.72).cgColor
-    scroll.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+    scroll.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.68).cgColor
+    scroll.layer?.borderColor = NSColor.systemTeal.withAlphaComponent(0.26).cgColor
     scroll.layer?.borderWidth = 1
-    scroll.layer?.cornerRadius = 12
+    scroll.layer?.cornerRadius = 14
     scroll.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-        body.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor, constant: 14),
-        body.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor, constant: -14),
-        body.topAnchor.constraint(equalTo: scroll.contentView.topAnchor, constant: 14),
-        body.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor, constant: -28),
+        body.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor, constant: 16),
+        body.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor, constant: -16),
+        body.topAnchor.constraint(equalTo: scroll.contentView.topAnchor, constant: 16),
+        body.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor, constant: -32),
     ])
     return scroll
 }
