@@ -1,0 +1,127 @@
+"""Windows Task Scheduler integration for the watcher."""
+
+import hashlib
+import subprocess
+import sys
+from pathlib import Path
+
+from .errors import NotifyError
+from .paths import logs_dir
+from .storage import atomic_write_bytes, ensure_dirs
+
+
+WATCHER_TASK_PREFIX = "DPLake-agent-notify-watcher"
+
+
+def watcher_label(root):
+    digest = hashlib.sha256(str(root.parent.resolve()).encode("utf-8")).hexdigest()[:12]
+    return f"{WATCHER_TASK_PREFIX}-{digest}"
+
+
+def launcher_path(root):
+    return root / "watcher-task.ps1"
+
+
+def format_number(value):
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _quote_powershell(value):
+    return str(value).replace("'", "''")
+
+
+def _build_launcher(root, agents, interval, timeout):
+    project_root = root.parent
+    script_path = project_root / "bin" / "agent-notify.ps1"
+    log_path = logs_dir(root) / "watcher.log"
+    args = [
+        "watch",
+        "run",
+        "--agents",
+        agents,
+        "--interval",
+        format_number(interval),
+        "--timeout",
+        format_number(timeout),
+    ]
+    lines = [
+        "$ErrorActionPreference = 'Stop'",
+        f"$tool = '{_quote_powershell(script_path)}'",
+        f"$log = '{_quote_powershell(log_path)}'",
+        "$args = @(",
+    ]
+    lines.extend(f"    '{_quote_powershell(arg)}'" for arg in args)
+    lines.extend(
+        [
+            ")",
+            "& $tool @args *>> $log",
+            "exit $LASTEXITCODE",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _run_schtasks(args):
+    return subprocess.run(["schtasks", *args], text=True, capture_output=True)
+
+
+def install_watcher(root, agents, interval, timeout):
+    if sys.platform != "win32":
+        raise NotifyError("watch install is only supported on Windows")
+    ensure_dirs(root)
+    label = watcher_label(root)
+    path = launcher_path(root)
+    log_path = logs_dir(root) / "watcher.log"
+    atomic_write_bytes(path, _build_launcher(root, agents, interval, timeout).encode("utf-8"))
+    command = (
+        f'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{path}"'
+    )
+    result = _run_schtasks(["/Create", "/SC", "ONLOGON", "/TN", label, "/TR", command, "/F"])
+    if result.returncode != 0:
+        raise NotifyError(result.stderr.strip() or f"could not create scheduled task: {label}")
+    return {
+        "installed": True,
+        "loaded": True,
+        "label": label,
+        "launcher": str(path),
+        "log": str(log_path),
+        "scheduler": "taskschd",
+    }
+
+
+def watcher_status(root):
+    if sys.platform != "win32":
+        raise NotifyError("watch status is only supported on Windows")
+    label = watcher_label(root)
+    path = launcher_path(root)
+    result = _run_schtasks(["/Query", "/TN", label, "/FO", "LIST", "/V"])
+    return {
+        "installed": path.is_file(),
+        "loaded": result.returncode == 0,
+        "label": label,
+        "launcher": str(path),
+        "log": str(logs_dir(root) / "watcher.log"),
+        "scheduler": "taskschd",
+    }
+
+
+def uninstall_watcher(root):
+    if sys.platform != "win32":
+        raise NotifyError("watch uninstall is only supported on Windows")
+    label = watcher_label(root)
+    path = launcher_path(root)
+    if path.exists():
+        result = _run_schtasks(["/Delete", "/TN", label, "/F"])
+        if result.returncode != 0:
+            raise NotifyError(result.stderr.strip() or f"could not delete scheduled task: {label}")
+        path.unlink()
+    return {
+        "installed": False,
+        "loaded": False,
+        "label": label,
+        "launcher": str(path),
+        "scheduler": "taskschd",
+    }
