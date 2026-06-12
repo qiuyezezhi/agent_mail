@@ -177,6 +177,36 @@ class AgentNotifyCliTest(unittest.TestCase):
             2,
         )
 
+    def test_update_does_not_install_watcher_when_not_already_installed(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import launchd, update_project, watch_service
+
+        root = self.repo / ".agent-notify"
+        root.mkdir()
+        home = Path(self.tmp.name) / "home"
+        calls = []
+
+        def fake_run(args, text=True, capture_output=True):
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 1, "", "not loaded")
+
+        with (
+            mock.patch("agent_mail.launchd.sys.platform", "darwin"),
+            mock.patch("agent_mail.watch_service.sys.platform", "darwin"),
+            mock.patch("agent_mail.launchd.Path.home", return_value=home),
+            mock.patch("agent_mail.launchd.subprocess.run", side_effect=fake_run),
+        ):
+            output = update_project.update_watcher(
+                root,
+                SimpleNamespace(no_watch=False, watch_agents=None, interval=None, timeout=None),
+            )
+            plist_path = launchd.watcher_plist_path(root)
+
+        self.assertFalse(output["updated"])
+        self.assertEqual(output["reason"], "watcher not installed")
+        self.assertFalse(plist_path.exists())
+        self.assertNotIn("load", [item for call in calls for item in call])
+
     def write_claude_session(self, home, session_id, content="{}\n", mtime=1):
         project_key = str(self.repo.resolve()).replace(os.sep, "-")
         sessions = home / ".claude" / "projects" / project_key
