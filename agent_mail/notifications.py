@@ -100,7 +100,6 @@ def write_macos_notifier_bundle(app_dir, executable):
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": "1.0",
         "CFBundleVersion": "1",
-        "LSBackgroundOnly": True,
         "LSUIElement": True,
         "NSHighResolutionCapable": True,
     }
@@ -117,6 +116,9 @@ def install_macos_notifier_app(app_dir=None):
     swiftc = shutil.which("swiftc")
     if swiftc is None:
         return {"installed": False, "reason": "swiftc not found", "app": str(selected_app_dir)}
+    codesign = shutil.which("codesign")
+    if codesign is None:
+        return {"installed": False, "reason": "codesign not found", "app": str(selected_app_dir)}
 
     source = selected_app_dir / "Contents" / "Resources" / "AgentNotifyNotifier.swift"
     source.parent.mkdir(parents=True, exist_ok=True)
@@ -137,6 +139,19 @@ def install_macos_notifier_app(app_dir=None):
         }
     executable.chmod(0o755)
     write_macos_notifier_bundle(selected_app_dir, executable)
+    signed = subprocess.run(
+        [codesign, "--force", "--deep", "--sign", "-", str(selected_app_dir)],
+        text=True,
+        capture_output=True,
+    )
+    if signed.returncode != 0:
+        return {
+            "installed": False,
+            "reason": "codesign failed",
+            "app": str(selected_app_dir),
+            "stderr": signed.stderr.strip() or None,
+            "stdout": signed.stdout.strip() or None,
+        }
     return {"installed": True, "app": str(selected_app_dir), "executable": str(executable)}
 
 
