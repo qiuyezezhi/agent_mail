@@ -7,14 +7,12 @@
 ```text
 agent_mail/
 ├── agent_mail/
-├── README.md
 ├── cli.py
+├── README.md
 ├── docs/
 │   ├── agent-rules.md
 │   ├── cli-reference.md
 │   └── install.md
-├── CHANGELOG.md
-├── LICENSE
 └── tests/
     └── test_agent_mail.py
 ```
@@ -94,11 +92,17 @@ agent-notify watch run --once --agents <agent-name>
 
 `docs/agent-rules.md`
 
-## 安装
+更明确的安装步骤在：
 
-最小安装步骤见 [docs/install.md](docs/install.md)。
+`docs/install.md`
 
-如果你要把它嵌进另一个项目，最简单的方式是复制这个仓库的以下内容：
+## 接入一个项目
+
+建议先看安装文档，里面明确区分了“在哪个目录执行”：
+
+`docs/install.md`
+
+1. 复制整个目录：
 
 ```text
 agent_mail/
@@ -107,7 +111,7 @@ docs/
 README.md
 ```
 
-`init` 会自动生成本地入口。如果目标项目想手动准备，也可以添加同名入口：
+2. `init` 会自动生成本地入口。如果目标项目想手动准备，也可以添加同名入口：
 
 ```python
 #!/usr/bin/env python3
@@ -131,7 +135,7 @@ if __name__ == "__main__":
 bin/agent-notify
 ```
 
-然后初始化项目：
+3. 初始化项目：
 
 ```bash
 agent-notify init
@@ -184,7 +188,7 @@ direnv allow
 agent-notify setup-direnv --status
 ```
 
-注册实际 agent：
+4. 注册实际 agent：
 
 ```bash
 agent-notify register codex-main --type codex --main
@@ -198,7 +202,7 @@ agent-notify register reasonix-web --type reasonix
 agent-notify set-main claude-reviewer
 ```
 
-需要自动唤醒时安装 watcher：
+5. 需要自动唤醒时安装 watcher：
 
 ```bash
 agent-notify watch install --agents claude-reviewer,reasonix-web
@@ -256,7 +260,9 @@ agent-notify handle --agent <agent-name> <message-id> --note "Done."
 
 把下面文件里的规则块复制到目标项目的 `AGENTS.md`、`CLAUDE.md` 或等价规则文件：
 
-`docs/agent-rules.md`
+```text
+tools/agent_mail/docs/agent-rules.md
+```
 
 最少要写清楚：
 
@@ -278,6 +284,6 @@ agent-notify init --print-agent-rules
 ## 验证
 
 ```bash
-python3 -m unittest tests/test_agent_mail.py
+python3 -m unittest tools/agent_mail/tests/test_agent_mail.py
 agent-notify lint
 ```

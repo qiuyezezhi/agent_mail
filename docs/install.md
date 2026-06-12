@@ -1,14 +1,93 @@
 # Install
 
-## Requirements
+## 场景 1：直接使用独立仓库
 
-- Python 3
-- Git repository working tree
-- Optional: `direnv` for automatic `agent-notify` activation when entering the project directory
+假设你已经把这个仓库克隆到本地，例如：
 
-## Quick Start
+```text
+/path/to/agent_mail
+```
 
-1. Put these files into your project:
+下面所有命令都在这个仓库根目录执行：
+
+```bash
+cd /path/to/agent_mail
+```
+
+### 1. 基本要求
+
+- 已安装 Python 3
+- 当前目录是一个 Git 工作目录
+- 可选：安装 `direnv`，这样进入项目目录时可以自动得到 `agent-notify` 命令
+
+### 2. 初始化本地运行态
+
+在仓库根目录执行：
+
+```bash
+python3 cli.py init
+```
+
+这一步会在当前仓库根目录创建或更新：
+
+- `.agent-notify/`
+- `.gitignore`
+- `.envrc`
+- `bin/agent-notify`
+- `bin/agent-notify.cmd`
+- `bin/agent-notify.ps1`
+
+### 3. 如果你想进入目录后自动能用 `agent-notify`
+
+仍然在仓库根目录执行：
+
+```bash
+python3 cli.py init --setup-direnv
+```
+
+如果你已经执行过 `init`，也可以单独执行：
+
+```bash
+python3 cli.py setup-direnv
+```
+
+成功后，重新进入这个仓库目录，`agent-notify` 就会通过 `bin/` 出现在 `PATH` 中。
+
+### 4. 注册 agent
+
+第一次注册必须在仓库根目录执行，并且必须注册 main-agent：
+
+```bash
+agent-notify register codex-main --type codex --main
+```
+
+然后再注册其他 agent：
+
+```bash
+agent-notify register claude-reviewer --type claude
+agent-notify register reasonix-web --type reasonix
+```
+
+### 5. 验证
+
+仍然在仓库根目录执行：
+
+```bash
+agent-notify lint
+python3 -m unittest tests/test_agent_mail.py
+```
+
+## 场景 2：把它嵌入另一个项目
+
+假设你的目标项目根目录是：
+
+```text
+/path/to/your-project
+```
+
+### 1. 复制文件到目标项目
+
+把下面这些内容复制到目标项目里：
 
 ```text
 agent_mail/
@@ -17,40 +96,68 @@ docs/
 README.md
 ```
 
-2. Initialize the repository-local runtime:
+复制完成后，目标项目结构至少应包含：
+
+```text
+/path/to/your-project/
+├── agent_mail/
+├── cli.py
+└── docs/
+```
+
+### 2. 切到目标项目根目录
+
+后续命令都在目标项目根目录执行，不是在 `agent_mail/` 子目录执行：
+
+```bash
+cd /path/to/your-project
+```
+
+### 3. 初始化目标项目
+
+在目标项目根目录执行：
 
 ```bash
 python3 cli.py init
 ```
 
-3. If you want automatic command activation when entering the project directory:
+如果你希望进入目标项目目录时自动能用 `agent-notify`，则执行：
 
 ```bash
 python3 cli.py init --setup-direnv
 ```
 
-4. Register the first agent as the single main-agent:
+### 4. 注册 agent
+
+第一次注册必须在目标项目根目录执行，并且必须带 `--main`：
 
 ```bash
 agent-notify register codex-main --type codex --main
 ```
 
-5. Register any additional agents:
+然后再注册其他 agent：
 
 ```bash
 agent-notify register claude-reviewer --type claude
 agent-notify register reasonix-web --type reasonix
 ```
 
-6. Verify the local runtime:
+### 5. 验证目标项目中的安装
+
+仍然在目标项目根目录执行：
 
 ```bash
 agent-notify lint
+```
+
+如果你连带测试也一起复制到了目标项目，再执行：
+
+```bash
 python3 -m unittest tests/test_agent_mail.py
 ```
 
-## Platform Notes
+## 平台说明
 
-- macOS: `init --setup-direnv` can install and hook `direnv` via Homebrew.
-- Windows: `init --setup-direnv` can install and hook `direnv` via `winget`, and the watcher can use Task Scheduler.
-- Messages sent to the main-agent itself do not auto-resume that agent. On macOS and Windows they produce a local system notification instead.
+- macOS：`init --setup-direnv` 会通过 Homebrew 安装并接通 `direnv`
+- Windows：`init --setup-direnv` 会通过 `winget` 安装并接通 `direnv`
+- 发给 main-agent 本人的消息不会自动 resume 该 agent；在 macOS 和 Windows 上会改为本地系统通知
