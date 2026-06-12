@@ -110,6 +110,15 @@ agent-notify update
 agent-notify update --no-watch
 ```
 
+如果系统后台启动项里有历史残留，先预览再清理：
+
+```bash
+agent-notify watch cleanup --dry-run
+agent-notify watch cleanup
+```
+
+`cleanup` 只删除项目目录或启动入口已经不存在的失效 watcher；其他仍有效项目的 watcher 会保留。
+
 ## 次要方式：直接使用独立仓库
 
 假设你已经把这个仓库克隆到本地，例如：
@@ -193,6 +202,12 @@ python3 -m unittest tests/test_agent_mail.py
 
 ```bash
 agent-notify update
+```
+
+如需清理历史残留 watcher，先执行：
+
+```bash
+agent-notify watch cleanup --dry-run
 ```
 
 ## 平台说明

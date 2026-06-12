@@ -1,6 +1,8 @@
 """Windows Task Scheduler integration for the watcher."""
 
+import csv
 import hashlib
+import io
 import subprocess
 import sys
 from pathlib import Path
@@ -154,3 +156,70 @@ def uninstall_watcher(root, remove_executable=True):
         "launcher": str(path),
         "scheduler": "taskschd",
     }
+
+
+def cleanup_watchers(root, dry_run=False):
+    if sys.platform != "win32":
+        raise NotifyError("watch cleanup is only supported on Windows")
+    current_label = watcher_label(root)
+    result = _run_schtasks(["/Query", "/FO", "CSV", "/V"])
+    if result.returncode != 0:
+        raise NotifyError(result.stderr.strip() or "could not query scheduled tasks")
+    removed = []
+    kept = []
+    for row in parse_task_rows(result.stdout):
+        name = task_name(row)
+        if not name or not name.lstrip("\\").startswith(WATCHER_TASK_PREFIX):
+            continue
+        item = inspect_cleanup_candidate(row, current_label)
+        if item["stale"]:
+            if not dry_run:
+                delete = _run_schtasks(["/Delete", "/TN", name, "/F"])
+                if delete.returncode != 0:
+                    raise NotifyError(delete.stderr.strip() or f"could not delete scheduled task: {name}")
+            removed.append(item)
+        else:
+            kept.append(item)
+    return {"checked": True, "dry_run": dry_run, "removed": removed, "kept": kept}
+
+
+def parse_task_rows(output):
+    return list(csv.DictReader(io.StringIO(output)))
+
+
+def task_name(row):
+    return row.get("TaskName") or row.get("Task Name") or row.get("任务名") or row.get("任务名称")
+
+
+def task_command(row):
+    return row.get("Task To Run") or row.get("TaskToRun") or row.get("要运行的任务") or row.get("执行的任务")
+
+
+def inspect_cleanup_candidate(row, current_label):
+    name = task_name(row) or ""
+    label = name.lstrip("\\")
+    launcher = extract_launcher_path(task_command(row) or "")
+    item = {
+        "label": label,
+        "task": name,
+        "launcher": launcher,
+        "current_project": label == current_label,
+        "stale": False,
+        "reason": None,
+    }
+    if not launcher:
+        item.update({"stale": True, "reason": "launcher path missing"})
+    elif not Path(launcher).is_file():
+        item.update({"stale": True, "reason": "launcher missing"})
+    return item
+
+
+def extract_launcher_path(command):
+    marker = " -File "
+    if marker not in command:
+        return None
+    value = command.split(marker, 1)[1].strip()
+    if value.startswith('"'):
+        end = value.find('"', 1)
+        return value[1:end] if end != -1 else value[1:]
+    return value.split()[0] if value else None

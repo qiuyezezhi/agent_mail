@@ -82,6 +82,7 @@ agent-notify sent --agent <agent>
 agent-notify lint
 agent-notify watch install --agents <agent-name>,<agent-name>
 agent-notify watch status
+agent-notify watch cleanup --dry-run
 agent-notify watch run --once --agents <agent-name>
 ```
 
@@ -237,6 +238,14 @@ agent-notify watch install --agents claude-reviewer,reasonix-web
 ```powershell
 agent-notify watch run --agents claude-reviewer,reasonix-web --interval 5
 ```
+
+如果后台启动项列表里出现历史残留，先预览清理范围：
+
+```bash
+agent-notify watch cleanup --dry-run
+```
+
+`cleanup` 默认只删除项目目录或启动入口已经不存在的失效 watcher，不会删除其他仍有效项目的 watcher。
 
 ## 更新工具
 

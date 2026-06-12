@@ -14,7 +14,7 @@ from .lint import command_lint
 from .messages import command_handle, command_inbox, command_read, command_send, command_sent
 from .registry import command_agents, command_register, command_set_main
 from .update_project import command_update
-from .watch_service import command_watch_install, command_watch_status, command_watch_uninstall
+from .watch_service import command_watch_cleanup, command_watch_install, command_watch_status, command_watch_uninstall
 from .watcher import command_watch_run
 
 
@@ -168,6 +168,10 @@ def build_parser():
 
     watch_uninstall = add_parser(watch_subparsers, "watch uninstall", name="uninstall")
     watch_uninstall.set_defaults(func=command_watch_uninstall)
+
+    watch_cleanup = add_parser(watch_subparsers, "watch cleanup", name="cleanup")
+    watch_cleanup.add_argument("--dry-run", action="store_true", help=help_text("watch cleanup", "--dry-run"))
+    watch_cleanup.set_defaults(func=command_watch_cleanup)
 
     return parser
 

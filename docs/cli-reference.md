@@ -35,6 +35,7 @@
 | `watch install` | 安装当前平台的后台 watcher |
 | `watch status` | 查看 watcher 安装/加载状态 |
 | `watch uninstall` | 卸载 watcher |
+| `watch cleanup` | 清理明显失效的 watcher 残留 |
 
 ## 通用输出和失败语义
 
@@ -608,6 +609,30 @@ agent-notify watch uninstall
 - macOS：`launchctl unload <plist>` 并删除 plist
 - Windows：删除 Task Scheduler 任务并删除 launcher 脚本
 - 不删除 `.agent-notify/` 队列
+
+## `watch cleanup`
+
+清理明显失效的 watcher 残留。
+
+```bash
+agent-notify watch cleanup [--dry-run]
+```
+
+行为：
+
+- 默认只删除明显失效的 watcher，例如项目目录不存在、启动入口不存在、脚本不存在、或平台配置损坏。
+- 不会因为 watcher 属于其他项目就删除；其他仍有效的项目会保留并出现在 `kept` 输出中。
+- 不删除 `.agent-notify/` 队列，不清空通知。
+- `--dry-run` 只报告将删除哪些项，不实际删除。
+
+输出字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `checked` | 是否执行了平台扫描 |
+| `dry_run` | 是否只预览 |
+| `removed` | 已删除或将删除的失效 watcher |
+| `kept` | 保留的有效 watcher，包括其他项目 |
 
 ## Reply Routing
 

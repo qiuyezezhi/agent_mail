@@ -136,6 +136,12 @@ HELP_INTERFACES = {
         "purpose": "Remove the watcher background service for the current platform.",
         "parameters": {},
     },
+    "watch cleanup": {
+        "purpose": "Remove stale watcher background services while keeping valid projects.",
+        "parameters": {
+            "--dry-run": "Report stale watcher services without deleting them.",
+        },
+    },
 }
 AGENT_RULES_TEXT = """# Agent Notify Rules
 

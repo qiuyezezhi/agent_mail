@@ -31,6 +31,10 @@ def uninstall_watcher(root, remove_executable=True):
     return _backend().uninstall_watcher(root, remove_executable=remove_executable)
 
 
+def cleanup_watchers(root, dry_run=False):
+    return _backend().cleanup_watchers(root, dry_run=dry_run)
+
+
 def command_watch_install(args):
     root = repo_notify_root()
     print_json(install_watcher(root, args.agents, args.interval, args.timeout))
@@ -44,3 +48,8 @@ def command_watch_status(_args):
 def command_watch_uninstall(_args):
     root = repo_notify_root()
     print_json(uninstall_watcher(root))
+
+
+def command_watch_cleanup(args):
+    root = repo_notify_root()
+    print_json(cleanup_watchers(root, dry_run=args.dry_run))

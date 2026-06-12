@@ -100,6 +100,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("send", overview["interfaces"])
         self.assertIn("update", overview["interfaces"])
         self.assertIn("watch run", overview["interfaces"])
+        self.assertIn("watch cleanup", overview["interfaces"])
         self.assertIn("docs/cli-reference.md", overview["docs"]["cli_reference"])
 
         send_help = self.parse_json(self.cli("help", "send"))
@@ -1757,6 +1758,61 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn(["list", installed["label"]], calls)
         self.assertIn(["unload", str(plist_path)], calls)
 
+    def test_watch_cleanup_removes_only_stale_launchd_plists(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import launchd
+
+        home = Path(self.tmp.name) / "home"
+        launch_agents = home / "Library" / "LaunchAgents"
+        launch_agents.mkdir(parents=True)
+        root = self.repo / ".agent-notify"
+        root.mkdir()
+        other_repo = Path(self.tmp.name) / "other-repo"
+        other_repo.mkdir()
+        stale_repo = Path(self.tmp.name) / "stale-repo"
+        stale_repo.mkdir()
+        valid_executable = Path(sys.executable)
+        valid_script = ROOT / "cli.py"
+        calls = []
+
+        def write_plist(label, working_directory, executable=valid_executable, script=valid_script):
+            path = launch_agents / f"{label}.plist"
+            with path.open("wb") as fh:
+                plistlib.dump(
+                    {
+                        "Label": label,
+                        "ProgramArguments": [str(executable), str(script), "watch", "run"],
+                        "WorkingDirectory": str(working_directory),
+                    },
+                    fh,
+                )
+            return path
+
+        current = write_plist(launchd.watcher_label(root), self.repo)
+        other = write_plist("com.dplake.agent-notify.watcher.otherproject", other_repo)
+        stale = write_plist("com.dplake.agent-notify.watcher.stale", stale_repo)
+        stale_repo.rmdir()
+
+        def fake_run(args, text=True, capture_output=True):
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with (
+            mock.patch("agent_mail.launchd.sys.platform", "darwin"),
+            mock.patch("agent_mail.launchd.Path.home", return_value=home),
+            mock.patch("agent_mail.launchd.subprocess.run", side_effect=fake_run),
+        ):
+            dry_run = launchd.cleanup_watchers(root, dry_run=True)
+            cleaned = launchd.cleanup_watchers(root, dry_run=False)
+
+        self.assertTrue(current.exists())
+        self.assertTrue(other.exists())
+        self.assertFalse(stale.exists())
+        self.assertEqual([item["label"] for item in dry_run["removed"]], ["com.dplake.agent-notify.watcher.stale"])
+        self.assertEqual([item["label"] for item in cleaned["removed"]], ["com.dplake.agent-notify.watcher.stale"])
+        self.assertEqual({item["label"] for item in cleaned["kept"]}, {launchd.watcher_label(root), "com.dplake.agent-notify.watcher.otherproject"})
+        self.assertIn(["launchctl", "unload", str(stale)], calls)
+
     def test_windows_task_scheduler_backend_writes_launcher_and_uses_schtasks(self):
         sys.path.insert(0, str(ROOT))
         from agent_mail import windows
@@ -1795,6 +1851,44 @@ class AgentNotifyCliTest(unittest.TestCase):
         )
         self.assertIn(["schtasks", "/Query", "/TN", installed["label"], "/FO", "LIST", "/V"], calls)
         self.assertIn(["schtasks", "/Delete", "/TN", installed["label"], "/F"], calls)
+
+    def test_watch_cleanup_removes_only_stale_windows_tasks(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import windows
+
+        root = self.repo / ".agent-notify"
+        root.mkdir()
+        other_launcher = Path(self.tmp.name) / "other.ps1"
+        other_launcher.write_text("echo other\n", encoding="utf-8")
+        stale_launcher = Path(self.tmp.name) / "missing.ps1"
+        current_launcher = windows.launcher_path(root)
+        current_launcher.write_text("echo current\n", encoding="utf-8")
+        current_label = windows.watcher_label(root)
+        csv_output = (
+            '"TaskName","Task To Run"\n'
+            f'"\\{current_label}","powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{current_launcher}"""\n'
+            f'"\\DPLake-agent-notify-watcher-other","powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{other_launcher}"""\n'
+            f'"\\DPLake-agent-notify-watcher-stale","powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{stale_launcher}"""\n'
+        )
+        calls = []
+
+        def fake_run(args, text=True, capture_output=True):
+            calls.append(args)
+            if args[:3] == ["schtasks", "/Query", "/FO"]:
+                return subprocess.CompletedProcess(args, 0, csv_output, "")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with (
+            mock.patch("agent_mail.windows.sys.platform", "win32"),
+            mock.patch("agent_mail.windows.subprocess.run", side_effect=fake_run),
+        ):
+            dry_run = windows.cleanup_watchers(root, dry_run=True)
+            cleaned = windows.cleanup_watchers(root, dry_run=False)
+
+        self.assertEqual([item["label"] for item in dry_run["removed"]], ["DPLake-agent-notify-watcher-stale"])
+        self.assertEqual([item["label"] for item in cleaned["removed"]], ["DPLake-agent-notify-watcher-stale"])
+        self.assertEqual({item["label"] for item in cleaned["kept"]}, {current_label, "DPLake-agent-notify-watcher-other"})
+        self.assertIn(["schtasks", "/Delete", "/TN", "\\DPLake-agent-notify-watcher-stale", "/F"], calls)
 
 
 if __name__ == "__main__":

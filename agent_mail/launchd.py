@@ -24,6 +24,9 @@ def watcher_label(root):
 def watcher_plist_path(root):
     return Path.home() / "Library" / "LaunchAgents" / f"{watcher_label(root)}.plist"
 
+def watcher_plist_glob():
+    return Path.home().joinpath("Library", "LaunchAgents").glob(f"{WATCHER_LABEL_PREFIX}.*.plist")
+
 def watcher_executable_path(root):
     return root / "watcher-bin" / WATCHER_PROCESS_NAME
 
@@ -147,6 +150,56 @@ def uninstall_watcher(root, remove_executable=True):
         except OSError:
             pass
     return {"installed": False, "loaded": False, "label": label, "plist": str(plist_path)}
+
+def cleanup_watchers(root, dry_run=False):
+    if sys.platform != "darwin":
+        raise NotifyError("watch cleanup is only supported on macOS")
+    current_label = watcher_label(root)
+    removed = []
+    kept = []
+    for plist_path in watcher_plist_glob():
+        item = inspect_cleanup_candidate(plist_path, current_label)
+        if item["stale"]:
+            if not dry_run:
+                subprocess.run(["launchctl", "unload", str(plist_path)], text=True, capture_output=True)
+                try:
+                    plist_path.unlink()
+                except FileNotFoundError:
+                    pass
+            removed.append(item)
+        else:
+            kept.append(item)
+    return {"checked": True, "dry_run": dry_run, "removed": removed, "kept": kept}
+
+def inspect_cleanup_candidate(plist_path, current_label):
+    item = {
+        "label": plist_path.stem,
+        "plist": str(plist_path),
+        "current_project": False,
+        "stale": False,
+        "reason": None,
+    }
+    try:
+        with plist_path.open("rb") as fh:
+            plist = plistlib.load(fh)
+    except (OSError, plistlib.InvalidFileException, ValueError) as exc:
+        item.update({"stale": True, "reason": f"invalid plist: {exc}"})
+        return item
+
+    label = plist.get("Label") or plist_path.stem
+    item["label"] = label
+    item["current_project"] = label == current_label
+    working_directory = plist.get("WorkingDirectory")
+    args = plist.get("ProgramArguments") or []
+    if not working_directory or not Path(working_directory).is_dir():
+        item.update({"stale": True, "reason": "working directory missing"})
+    elif len(args) < 2:
+        item.update({"stale": True, "reason": "program arguments missing"})
+    elif not Path(args[0]).exists():
+        item.update({"stale": True, "reason": "watcher executable missing"})
+    elif not Path(args[1]).exists():
+        item.update({"stale": True, "reason": "cli script missing"})
+    return item
 
 def command_watch_uninstall(_args):
     root = repo_notify_root()
