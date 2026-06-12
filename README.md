@@ -228,8 +228,10 @@ agent-notify watch install
 
 `watch install` 会按当前平台安装后台 watcher。默认监控所有支持 watcher 的已注册 agent；非 main agent 会被自动唤醒，main-agent 只发系统通知：
 
-- macOS：使用 `launchd`
+- macOS：使用 `launchd`；通知优先通过隐藏后台 helper app `agent-notify` 发送
 - Windows：使用 Task Scheduler
+
+macOS helper app 会安装到 `~/Library/Application Support/agent-notify/notifier/agent-notify.app`。它不会放进 `/Applications`，不会出现在启动台，也不会显示 Dock 图标；它只用于提供稳定的系统通知来源。如果当前机器缺少 Swift 编译器，工具会回退到 `osascript`。
 
 另外，发给 main-agent 本人的消息不会触发 session resume。watcher 只会在支持的平台上发系统通知；当前实现覆盖 macOS 和 Windows。
 

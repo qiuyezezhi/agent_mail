@@ -215,3 +215,4 @@ agent-notify watch cleanup --dry-run
 - macOS：`init --setup-direnv` 会通过 Homebrew 安装并接通 `direnv`
 - Windows：`init --setup-direnv` 会通过 `winget` 安装并接通 `direnv`
 - 发给 main-agent 本人的消息不会自动 resume 该 agent；在 macOS 和 Windows 上会改为本地系统通知
+- macOS 通知优先使用隐藏后台 helper app，位置是 `~/Library/Application Support/agent-notify/notifier/agent-notify.app`。它不会出现在启动台、Dock 或 `/Applications`；如果无法编译 helper app，会回退到 `osascript`

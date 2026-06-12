@@ -426,14 +426,42 @@ class AgentNotifyCliTest(unittest.TestCase):
             ],
         )
 
-    def test_notify_main_agent_builds_macos_notification_command(self):
+    def test_notify_main_agent_uses_macos_helper_app_when_available(self):
         sys.path.insert(0, str(ROOT))
         from agent_mail import notifications
 
         message = {"id": "123", "from": "worker", "to": "codex-main", "subject": "Review", "body": "Body"}
-        command = notifications.build_notification_command("darwin", message)
+        notifier_app = self.repo / ".agent-notify" / "notifier" / "agent-notify.app"
+        command = notifications.build_macos_notification_command(message, notifier_app=notifier_app)
+        self.assertEqual(command[:6], ["open", "-W", "-gj", "-n", str(notifier_app), "--args"])
+        self.assertIn("--title", command)
+        self.assertIn("--subtitle", command)
+        self.assertIn("--body", command)
+
+    def test_notify_main_agent_falls_back_to_osascript_without_macos_helper_app(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import notifications
+
+        message = {"id": "123", "from": "worker", "to": "codex-main", "subject": "Review", "body": "Body"}
+        command = notifications.build_macos_notification_command(message, notifier_app=None)
         self.assertEqual(command[0], "osascript")
         self.assertIn("display notification", command[2])
+
+    def test_macos_notifier_app_bundle_is_hidden_background_app(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import notifications
+
+        app_dir = self.repo / ".agent-notify" / "notifier" / "agent-notify.app"
+        executable = app_dir / "Contents" / "MacOS" / "agent-notify-notifier"
+        executable.parent.mkdir(parents=True)
+        executable.write_text("#!/bin/sh\n", encoding="utf-8")
+        notifications.write_macos_notifier_bundle(app_dir, executable)
+
+        info = plistlib.loads((app_dir / "Contents" / "Info.plist").read_bytes())
+        self.assertEqual(info["CFBundleIdentifier"], "dev.dplake.agent-notify.notifier")
+        self.assertEqual(info["CFBundleName"], "agent-notify")
+        self.assertTrue(info["LSBackgroundOnly"])
+        self.assertTrue(info["LSUIElement"])
 
     def test_notify_main_agent_builds_windows_notification_command(self):
         sys.path.insert(0, str(ROOT))

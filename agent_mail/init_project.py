@@ -7,6 +7,7 @@ import sys
 from .constants import AGENT_RULES_TEXT
 from .direnv_setup import find_direnv, prompt_setup_direnv, setup_direnv
 from .errors import NotifyError
+from .notifications import install_macos_notifier_app
 from .paths import repo_notify_root
 from .registry import infer_agent_type, load_agent_records, load_agents, save_agent_records
 from .storage import atomic_write_bytes, ensure_dirs, write_lock
@@ -187,6 +188,7 @@ def command_init(args):
     watcher = {"installed": False}
     if args.install_watcher:
         watcher = install_watcher(root, args.watch_agents or args.agents, args.interval, args.timeout)
+    notifier = install_notifier()
     output = {
         "root": str(root.resolve()),
         "gitignore": None if args.no_gitignore else str((project_root / ".gitignore").resolve()),
@@ -202,6 +204,7 @@ def command_init(args):
         "entrypoint_updated": entrypoint_updated,
         "direnv": direnv_status,
         "direnv_setup": direnv_setup,
+        "notifier": notifier,
         "agents": load_agents(root),
         "agent_details": load_agent_records(root),
         "registered_agents": registered,
@@ -218,3 +221,11 @@ def command_init(args):
     if args.print_agent_rules:
         output["rules"] = AGENT_RULES_TEXT
     print_json(output)
+
+
+def install_notifier():
+    if sys.platform != "darwin":
+        return {"checked": False, "installed": False, "reason": "unsupported platform"}
+    status = install_macos_notifier_app()
+    status["checked"] = True
+    return status

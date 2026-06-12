@@ -155,9 +155,10 @@ def watch_once(root, agents, timeout_seconds):
             else:
                 mark_message_read(root, agent, message["id"])
                 clear_retry_failure(root, message["id"])
-                report["notified"].append(
-                    {"agent": agent, "message_id": message["id"], "platform": notification["platform"]}
-                )
+                item = {"agent": agent, "message_id": message["id"], "platform": notification["platform"]}
+                if notification.get("notifier"):
+                    item["notifier"] = notification["notifier"]
+                report["notified"].append(item)
             continue
         session = select_agent_session(agent_type_value, project_root, message, root)
         if session is None:

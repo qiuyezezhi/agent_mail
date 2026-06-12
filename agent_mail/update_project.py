@@ -1,7 +1,10 @@
 """Project-local update command."""
 
+import sys
+
 from .errors import NotifyError
 from .init_project import allow_direnv, ensure_gitignore_entry, ensure_project_entrypoint, ensure_project_envrc
+from .notifications import install_macos_notifier_app
 from .paths import repo_notify_root
 from .storage import ensure_dirs
 from .utils import print_json
@@ -19,6 +22,7 @@ def command_update(args):
     if not args.no_direnv:
         direnv_status = allow_direnv(project_root)
 
+    notifier = install_notifier()
     watcher = update_watcher(root, args)
     print_json(
         {
@@ -27,9 +31,18 @@ def command_update(args):
             "envrc_updated": envrc_updated,
             "entrypoint_updated": entrypoint_updated,
             "direnv": direnv_status,
+            "notifier": notifier,
             "watcher": watcher,
         }
     )
+
+
+def install_notifier():
+    if sys.platform != "darwin":
+        return {"checked": False, "installed": False, "reason": "unsupported platform"}
+    status = install_macos_notifier_app()
+    status["checked"] = True
+    return status
 
 
 def update_watcher(root, args):
