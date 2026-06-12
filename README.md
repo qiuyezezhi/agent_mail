@@ -98,6 +98,18 @@ agent-notify watch run --once --agents <agent-name>
 
 ## 接入一个项目
 
+推荐结构是把它放进项目的 `tools/agent_mail/`：
+
+```text
+your-project/
+├── tools/
+│   └── agent_mail/
+│       ├── agent_mail/
+│       ├── cli.py
+│       ├── docs/
+│       └── README.md
+```
+
 建议先看安装文档，里面明确区分了“在哪个目录执行”：
 
 `docs/install.md`
@@ -105,10 +117,14 @@ agent-notify watch run --once --agents <agent-name>
 1. 复制整个目录：
 
 ```text
-agent_mail/
-cli.py
-docs/
-README.md
+tools/agent_mail/
+```
+
+后续初始化命令建议始终在目标项目根目录执行，例如：
+
+```bash
+python3 tools/agent_mail/cli.py init
+python3 tools/agent_mail/cli.py init --setup-direnv
 ```
 
 2. `init` 会自动生成本地入口。如果目标项目想手动准备，也可以添加同名入口：

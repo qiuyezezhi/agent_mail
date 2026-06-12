@@ -1,6 +1,100 @@
 # Install
 
-## 场景 1：直接使用独立仓库
+## 推荐方式：嵌入到目标项目的 `tools/agent_mail/`
+
+假设你的目标项目根目录是：
+
+```text
+/path/to/your-project
+```
+
+推荐把 `agent-notify` 放成下面这种结构：
+
+```text
+/path/to/your-project/
+├── tools/
+│   └── agent_mail/
+│       ├── agent_mail/
+│       ├── cli.py
+│       ├── docs/
+│       └── README.md
+```
+
+### 1. 复制文件到目标项目
+
+把独立仓库里的这些内容复制到目标项目的 `tools/agent_mail/` 目录下：
+
+```text
+agent_mail/
+cli.py
+docs/
+README.md
+```
+
+复制完成后，目标项目里应当是：
+
+```text
+/path/to/your-project/
+├── tools/
+│   └── agent_mail/
+│       ├── agent_mail/
+│       ├── cli.py
+│       ├── docs/
+│       └── README.md
+```
+
+### 2. 切到目标项目根目录
+
+后续命令都在目标项目根目录执行，不是在 `tools/agent_mail/` 子目录执行：
+
+```bash
+cd /path/to/your-project
+```
+
+### 3. 初始化目标项目
+
+在目标项目根目录执行：
+
+```bash
+python3 tools/agent_mail/cli.py init
+```
+
+如果你希望进入目标项目目录时自动能用 `agent-notify`，则执行：
+
+```bash
+python3 tools/agent_mail/cli.py init --setup-direnv
+```
+
+### 4. 注册 agent
+
+第一次注册必须在目标项目根目录执行，并且必须带 `--main`：
+
+```bash
+agent-notify register codex-main --type codex --main
+```
+
+然后再注册其他 agent：
+
+```bash
+agent-notify register claude-reviewer --type claude
+agent-notify register reasonix-web --type reasonix
+```
+
+### 5. 验证目标项目中的安装
+
+仍然在目标项目根目录执行：
+
+```bash
+agent-notify lint
+```
+
+如果你把测试也一起复制到了目标项目的 `tools/agent_mail/tests/`，再执行：
+
+```bash
+python3 -m unittest tools/agent_mail/tests/test_agent_mail.py
+```
+
+## 次要方式：直接使用独立仓库
 
 假设你已经把这个仓库克隆到本地，例如：
 
@@ -74,85 +168,6 @@ agent-notify register reasonix-web --type reasonix
 
 ```bash
 agent-notify lint
-python3 -m unittest tests/test_agent_mail.py
-```
-
-## 场景 2：把它嵌入另一个项目
-
-假设你的目标项目根目录是：
-
-```text
-/path/to/your-project
-```
-
-### 1. 复制文件到目标项目
-
-把下面这些内容复制到目标项目里：
-
-```text
-agent_mail/
-cli.py
-docs/
-README.md
-```
-
-复制完成后，目标项目结构至少应包含：
-
-```text
-/path/to/your-project/
-├── agent_mail/
-├── cli.py
-└── docs/
-```
-
-### 2. 切到目标项目根目录
-
-后续命令都在目标项目根目录执行，不是在 `agent_mail/` 子目录执行：
-
-```bash
-cd /path/to/your-project
-```
-
-### 3. 初始化目标项目
-
-在目标项目根目录执行：
-
-```bash
-python3 cli.py init
-```
-
-如果你希望进入目标项目目录时自动能用 `agent-notify`，则执行：
-
-```bash
-python3 cli.py init --setup-direnv
-```
-
-### 4. 注册 agent
-
-第一次注册必须在目标项目根目录执行，并且必须带 `--main`：
-
-```bash
-agent-notify register codex-main --type codex --main
-```
-
-然后再注册其他 agent：
-
-```bash
-agent-notify register claude-reviewer --type claude
-agent-notify register reasonix-web --type reasonix
-```
-
-### 5. 验证目标项目中的安装
-
-仍然在目标项目根目录执行：
-
-```bash
-agent-notify lint
-```
-
-如果你连带测试也一起复制到了目标项目，再执行：
-
-```bash
 python3 -m unittest tests/test_agent_mail.py
 ```
 
