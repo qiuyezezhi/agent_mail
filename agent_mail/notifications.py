@@ -220,11 +220,14 @@ func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor 
 }
 
 func cardView() -> NSView {
-    let view = NSView()
+    let view = NSVisualEffectView()
+    view.material = .hudWindow
+    view.blendingMode = .withinWindow
+    view.state = .active
+    view.isEmphasized = true
     view.translatesAutoresizingMaskIntoConstraints = false
     view.wantsLayer = true
-    view.layer?.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.86).cgColor
-    view.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.42).cgColor
+    view.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.34).cgColor
     view.layer?.borderWidth = 1
     view.layer?.cornerRadius = 18
     view.layer?.shadowColor = NSColor.black.withAlphaComponent(0.18).cgColor
@@ -253,8 +256,8 @@ func pill(_ labelText: String, _ value: String) -> NSView {
     stack.edgeInsets = NSEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)
     stack.translatesAutoresizingMaskIntoConstraints = false
     stack.wantsLayer = true
-    stack.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.88).cgColor
-    stack.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
+    stack.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.48).cgColor
+    stack.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.38).cgColor
     stack.layer?.borderWidth = 1
     stack.layer?.cornerRadius = 9
     return stack
@@ -272,7 +275,7 @@ func bodyView(_ text: String) -> NSScrollView {
     scroll.documentView = body
     scroll.drawsBackground = false
     scroll.wantsLayer = true
-    scroll.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.68).cgColor
+    scroll.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.42).cgColor
     scroll.layer?.borderColor = NSColor.systemTeal.withAlphaComponent(0.26).cgColor
     scroll.layer?.borderWidth = 1
     scroll.layer?.cornerRadius = 14
