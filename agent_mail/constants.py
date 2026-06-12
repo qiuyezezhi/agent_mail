@@ -17,7 +17,7 @@ HELP_INTERFACES = {
             "--agents": "Optional comma-separated name:type registrations, for example claude-reviewer:claude.",
             "--no-gitignore": "Do not add .agent-notify/ to .gitignore.",
             "--install-watcher": "Install the background watcher after initialization.",
-            "--watch-agents": "Advanced watcher filter used with --install-watcher. Omit to monitor all non-main watchable agents.",
+            "--watch-agents": "Advanced watcher filter used with --install-watcher. Omit to monitor all watchable agents; main-agent is notify-only.",
             "--interval": "Watcher polling interval in seconds. Default: 5.",
             "--timeout": "Per resume command timeout in seconds. Default: 1800.",
             "--setup-direnv": "Install and configure direnv for the current platform shell before finalizing init.",
@@ -114,7 +114,7 @@ HELP_INTERFACES = {
     "watch run": {
         "purpose": "Run the watcher in the foreground.",
         "parameters": {
-            "--agents": "Optional comma-separated agent names to monitor. Omit to monitor all non-main watchable registered agents.",
+            "--agents": "Optional comma-separated agent names to monitor. Omit to monitor all watchable registered agents; main-agent is notify-only.",
             "--interval": "Polling interval in seconds. Default: 5.",
             "--timeout": "Per resume command timeout in seconds. Default: 1800.",
             "--once": "Run one scan and exit.",
@@ -123,7 +123,7 @@ HELP_INTERFACES = {
     "watch install": {
         "purpose": "Install the watcher as a platform user background service.",
         "parameters": {
-            "--agents": "Optional advanced filter. Omit to monitor all non-main watchable registered agents.",
+            "--agents": "Optional advanced filter. Omit to monitor all watchable registered agents; main-agent is notify-only.",
             "--interval": "Polling interval in seconds. Default: 5.",
             "--timeout": "Per resume command timeout in seconds. Default: 1800.",
         },

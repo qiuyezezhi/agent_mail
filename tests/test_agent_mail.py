@@ -456,9 +456,12 @@ class AgentNotifyCliTest(unittest.TestCase):
         notify.assert_called_once()
         self.assertEqual(output["notified"][0]["agent"], "codex-main")
         inbox = self.parse_json(self.cli("inbox", "--agent", "codex-main"))
-        self.assertEqual(inbox[0]["status"], "unread")
+        self.assertEqual(inbox[0]["status"], "read")
 
-    def test_watch_default_agent_list_excludes_main_agent(self):
+        second = watcher.watch_once(self.repo / ".agent-notify", ["codex-main"], 1800)
+        self.assertEqual(second["notified"], [])
+
+    def test_watch_default_agent_list_includes_main_agent_for_notifications(self):
         self.cli("register", "codex-main", "--type", "codex", "--main")
         self.cli("register", "claude-reviewer", "--type", "claude")
         self.cli("register", "reasonix-web", "--type", "reasonix")
@@ -468,7 +471,7 @@ class AgentNotifyCliTest(unittest.TestCase):
 
         self.assertEqual(
             watcher.parse_agent_list(None, self.repo / ".agent-notify"),
-            ["claude-reviewer", "reasonix-web"],
+            ["claude-reviewer", "codex-main", "reasonix-web"],
         )
 
     def test_watch_run_once_keeps_main_agent_message_unread_on_notification_failure(self):

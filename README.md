@@ -220,13 +220,13 @@ agent-notify register reasonix-web --type reasonix
 agent-notify set-main claude-reviewer
 ```
 
-5. 需要自动唤醒非 main agent 时安装 watcher：
+5. 需要自动唤醒和 main-agent 系统通知时安装 watcher：
 
 ```bash
 agent-notify watch install
 ```
 
-`watch install` 会按当前平台安装后台 watcher。默认监控所有非 main 且支持唤醒的已注册 agent：
+`watch install` 会按当前平台安装后台 watcher。默认监控所有支持 watcher 的已注册 agent；非 main agent 会被自动唤醒，main-agent 只发系统通知：
 
 - macOS：使用 `launchd`
 - Windows：使用 Task Scheduler

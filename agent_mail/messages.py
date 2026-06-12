@@ -125,12 +125,16 @@ def command_sent(args):
 
 def command_read(args):
     root = repo_notify_root()
+    message = mark_message_read(root, args.agent, args.message_id)
+    print_json(message)
+
+def mark_message_read(root, agent, message_id):
     with write_lock(root):
         ensure_dirs(root)
-        require_agent(root, args.agent)
-        path = message_path(root, args.message_id, include_archive=False)
+        require_agent(root, agent)
+        path = message_path(root, message_id, include_archive=False)
         message = load_message(path)
-        if message.get("to") != args.agent:
+        if message.get("to") != agent:
             raise NotifyError("message is not addressed to this agent")
         if message.get("status") == "unread":
             timestamp = now_iso()
@@ -138,7 +142,7 @@ def command_read(args):
             message["read_at"] = timestamp
             message["updated_at"] = timestamp
             atomic_write_json(path, message)
-    print_json(message)
+    return message
 
 def command_handle(args):
     root = repo_notify_root()

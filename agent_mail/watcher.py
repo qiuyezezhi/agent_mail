@@ -8,6 +8,7 @@ import uuid
 from .constants import SUPPORTED_AGENT_TYPES
 from .errors import NotifyError
 from .messages import load_message
+from .messages import mark_message_read
 from .notifications import notify_main_agent
 from .paths import logs_dir, messages_dir, repo_notify_root
 from .registry import agent_type, is_main_agent, load_agent_records
@@ -103,11 +104,7 @@ def unread_messages_for_agent(root, agent):
 def parse_agent_list(value, root):
     if value:
         return parse_agent_names(value)
-    return [
-        record["name"]
-        for record in load_agent_records(root)
-        if record["type"] in SUPPORTED_AGENT_TYPES and not record.get("main", False)
-    ]
+    return [record["name"] for record in load_agent_records(root) if record["type"] in SUPPORTED_AGENT_TYPES]
 
 def watch_log(root, message):
     ensure_dirs(root)
@@ -156,6 +153,7 @@ def watch_once(root, agents, timeout_seconds):
                     }
                 )
             else:
+                mark_message_read(root, agent, message["id"])
                 clear_retry_failure(root, message["id"])
                 report["notified"].append(
                     {"agent": agent, "message_id": message["id"], "platform": notification["platform"]}

@@ -23,7 +23,7 @@ Copy this block into `AGENTS.md`, `CLAUDE.md`, or another project-level agent in
 - Mark notifications handled with `agent-notify handle --agent <agent> <message-id> --note <note>` only after required follow-up succeeds.
 - `handled` only means the notification lifecycle is closed; it does not mean the underlying implementation task succeeded.
 - Reply bodies must start with `In reply to <message-id>` so the watcher can route replies to the sender's original session when possible.
-- The background watcher is the only automatic wakeup mechanism. Install it explicitly with `agent-notify watch install`; by default it monitors all non-main watchable agents.
+- The background watcher is the only automatic wakeup mechanism. Install it explicitly with `agent-notify watch install`; by default it monitors all watchable agents, while the main-agent is notify-only.
 - Messages addressed to the main-agent itself only trigger a local system notification on supported platforms; they do not auto-resume that agent session.
 - If the watcher is not installed or cannot safely resume a session, messages remain queued until an agent handles them manually or a later watcher pass succeeds.
 - Treat `.agent-notify/logs/watcher.log` as wakeup diagnostics, not as the authoritative task result.
