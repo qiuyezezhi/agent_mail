@@ -470,6 +470,8 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertNotIn("NSButton(", source)
         self.assertNotIn("Process()", source)
         self.assertIn("bodyView(details.body)", source)
+        self.assertIn("cardView()", source)
+        self.assertIn("cardSurface.addSubview(stack)", source)
         self.assertIn("accentView()", source)
         self.assertIn('pill("From", details.sender)', source)
         self.assertIn('pill("To", details.recipient)', source)

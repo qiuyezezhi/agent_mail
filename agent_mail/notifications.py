@@ -139,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         let card = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: 580, height: 400),
             styleMask: [.titled, .closable, .utilityWindow],
             backing: .buffered,
             defer: false
@@ -151,8 +151,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         card.level = .floating
         card.center()
 
-        let content = NSView(frame: card.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 560, height: 380))
+        let content = NSView(frame: card.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 580, height: 400))
         content.translatesAutoresizingMaskIntoConstraints = false
+        content.wantsLayer = true
+        content.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.92).cgColor
+        let cardSurface = cardView()
 
         let accent = accentView()
         let title = label(details.subject, size: 20, weight: .semibold)
@@ -170,13 +173,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        content.addSubview(stack)
+        cardSurface.addSubview(stack)
+        content.addSubview(cardSurface)
         card.contentView = content
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 28),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -28),
-            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 26),
-            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -24),
+            cardSurface.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 22),
+            cardSurface.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -22),
+            cardSurface.topAnchor.constraint(equalTo: content.topAnchor, constant: 22),
+            cardSurface.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -22),
+            stack.leadingAnchor.constraint(equalTo: cardSurface.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: cardSurface.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: cardSurface.topAnchor, constant: 24),
+            stack.bottomAnchor.constraint(equalTo: cardSurface.bottomAnchor, constant: -22),
             accent.widthAnchor.constraint(equalToConstant: 72),
             accent.heightAnchor.constraint(equalToConstant: 4),
             body.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -203,6 +211,21 @@ func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor 
     view.lineBreakMode = .byWordWrapping
     view.maximumNumberOfLines = 0
     view.translatesAutoresizingMaskIntoConstraints = false
+    return view
+}
+
+func cardView() -> NSView {
+    let view = NSView()
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.wantsLayer = true
+    view.layer?.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.86).cgColor
+    view.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.42).cgColor
+    view.layer?.borderWidth = 1
+    view.layer?.cornerRadius = 18
+    view.layer?.shadowColor = NSColor.black.withAlphaComponent(0.18).cgColor
+    view.layer?.shadowOpacity = 1
+    view.layer?.shadowRadius = 18
+    view.layer?.shadowOffset = CGSize(width: 0, height: -6)
     return view
 }
 
