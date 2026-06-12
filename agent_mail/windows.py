@@ -136,7 +136,7 @@ def watcher_config_from_launcher(path):
     return config
 
 
-def uninstall_watcher(root):
+def uninstall_watcher(root, remove_executable=True):
     if sys.platform != "win32":
         raise NotifyError("watch uninstall is only supported on Windows")
     label = watcher_label(root)
@@ -145,7 +145,8 @@ def uninstall_watcher(root):
         result = _run_schtasks(["/Delete", "/TN", label, "/F"])
         if result.returncode != 0:
             raise NotifyError(result.stderr.strip() or f"could not delete scheduled task: {label}")
-        path.unlink()
+        if remove_executable:
+            path.unlink()
     return {
         "installed": False,
         "loaded": False,

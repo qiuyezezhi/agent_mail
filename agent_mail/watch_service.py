@@ -27,8 +27,8 @@ def watcher_status(root):
     return _backend().watcher_status(root)
 
 
-def uninstall_watcher(root):
-    return _backend().uninstall_watcher(root)
+def uninstall_watcher(root, remove_executable=True):
+    return _backend().uninstall_watcher(root, remove_executable=remove_executable)
 
 
 def command_watch_install(args):

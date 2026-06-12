@@ -141,6 +141,7 @@ class AgentNotifyCliTest(unittest.TestCase):
 
         root = self.repo / ".agent-notify"
         root.mkdir()
+        home = Path(self.tmp.name) / "home"
         calls = []
 
         def fake_run(args, text=True, capture_output=True):
@@ -150,9 +151,12 @@ class AgentNotifyCliTest(unittest.TestCase):
         with (
             mock.patch("agent_mail.launchd.sys.platform", "darwin"),
             mock.patch("agent_mail.watch_service.sys.platform", "darwin"),
+            mock.patch("agent_mail.launchd.Path.home", return_value=home),
             mock.patch("agent_mail.launchd.subprocess.run", side_effect=fake_run),
         ):
             launchd.install_watcher(root, "claude,reasonix", 7, 1800)
+            executable = launchd.watcher_executable_path(root)
+            self.assertTrue(executable.is_symlink())
             output = update_project.update_watcher(
                 root,
                 SimpleNamespace(no_watch=False, watch_agents=None, interval=None, timeout=None),
@@ -162,6 +166,8 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(output["agents"], "claude,reasonix")
         self.assertEqual(output["interval"], 7.0)
         self.assertEqual(output["timeout"], 1800.0)
+        self.assertTrue(executable.is_symlink())
+        self.assertEqual(Path(output["installed"]["executable"]), executable)
         self.assertGreaterEqual(
             sum(1 for call in calls if call[:1] == ["launchctl"] and "load" in call),
             2,

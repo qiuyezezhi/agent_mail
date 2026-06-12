@@ -133,14 +133,14 @@ def command_watch_status(_args):
     root = repo_notify_root()
     print_json(watcher_status(root))
 
-def uninstall_watcher(root):
+def uninstall_watcher(root, remove_executable=True):
     label = watcher_label(root)
     plist_path = watcher_plist_path(root)
     if plist_path.exists():
         subprocess.run(["launchctl", "unload", str(plist_path)], text=True, capture_output=True)
         plist_path.unlink()
     executable = watcher_executable_path(root)
-    if executable.exists() or executable.is_symlink():
+    if remove_executable and (executable.exists() or executable.is_symlink()):
         executable.unlink()
         try:
             executable.parent.rmdir()
