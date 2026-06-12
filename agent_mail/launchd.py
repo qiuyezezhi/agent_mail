@@ -74,13 +74,33 @@ def watcher_status(root):
     label = watcher_label(root)
     plist_path = watcher_plist_path(root)
     result = subprocess.run(["launchctl", "list", label], text=True, capture_output=True)
-    return {
+    status = {
         "installed": plist_path.is_file(),
         "loaded": result.returncode == 0,
         "label": label,
         "plist": str(plist_path),
         "log": str(logs_dir(root) / "watcher.log"),
     }
+    if plist_path.is_file():
+        with plist_path.open("rb") as fh:
+            plist = plistlib.load(fh)
+        args = plist.get("ProgramArguments", [])
+        status.update(watcher_config_from_args(args))
+    return status
+
+
+def watcher_config_from_args(args):
+    config = {}
+    for key, output_key in (("--agents", "agents"), ("--interval", "interval"), ("--timeout", "timeout")):
+        if key in args:
+            value = args[args.index(key) + 1]
+            if output_key in {"interval", "timeout"}:
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
+            config[output_key] = value
+    return config
 
 def command_watch_status(_args):
     root = repo_notify_root()

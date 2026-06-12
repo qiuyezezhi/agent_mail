@@ -98,7 +98,7 @@ def watcher_status(root):
     label = watcher_label(root)
     path = launcher_path(root)
     result = _run_schtasks(["/Query", "/TN", label, "/FO", "LIST", "/V"])
-    return {
+    status = {
         "installed": path.is_file(),
         "loaded": result.returncode == 0,
         "label": label,
@@ -106,6 +106,34 @@ def watcher_status(root):
         "log": str(logs_dir(root) / "watcher.log"),
         "scheduler": "taskschd",
     }
+    if path.is_file():
+        status.update(watcher_config_from_launcher(path))
+    return status
+
+
+def watcher_config_from_launcher(path):
+    config = {}
+    args = []
+    in_args = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped == "$args = @(":
+            in_args = True
+            continue
+        if in_args and stripped == ")":
+            break
+        if in_args and stripped.startswith("'") and stripped.endswith("'"):
+            args.append(stripped[1:-1].replace("''", "'"))
+    for key, output_key in (("--agents", "agents"), ("--interval", "interval"), ("--timeout", "timeout")):
+        if key in args:
+            value = args[args.index(key) + 1]
+            if output_key in {"interval", "timeout"}:
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
+            config[output_key] = value
+    return config
 
 
 def uninstall_watcher(root):

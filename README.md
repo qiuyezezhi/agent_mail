@@ -68,6 +68,7 @@ agent-notify help setup-direnv
 
 ```bash
 agent-notify init
+agent-notify update
 agent-notify setup-direnv
 agent-notify register <agent-name> --type <codex|claude|reasonix> --main
 agent-notify register <agent-name> --type <codex|claude|reasonix>
@@ -235,6 +236,28 @@ agent-notify watch install --agents claude-reviewer,reasonix-web
 
 ```powershell
 agent-notify watch run --agents claude-reviewer,reasonix-web --interval 5
+```
+
+## 更新工具
+
+当 `tools/agent_mail/` 的代码或需求更新后，在目标项目根目录执行：
+
+```bash
+agent-notify update
+```
+
+它会刷新本地入口和环境：
+
+- 补齐 `.gitignore` 中的 `.agent-notify/`
+- 确保 `.envrc` 存在
+- 强制刷新 `bin/agent-notify`、`bin/agent-notify.cmd`、`bin/agent-notify.ps1`
+- 如果本机有 `direnv`，重新执行 `direnv allow`
+- 如果后台 watcher 已安装，自动卸载并按原参数重新安装
+
+如果你只想刷新入口，不碰 watcher：
+
+```bash
+agent-notify update --no-watch
 ```
 
 ## Agent 如何配合

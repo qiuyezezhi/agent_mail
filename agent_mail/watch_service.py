@@ -23,6 +23,14 @@ def install_watcher(root, agents, interval, timeout):
     return _backend().install_watcher(root, agents, interval, timeout)
 
 
+def watcher_status(root):
+    return _backend().watcher_status(root)
+
+
+def uninstall_watcher(root):
+    return _backend().uninstall_watcher(root)
+
+
 def command_watch_install(args):
     root = repo_notify_root()
     print_json(install_watcher(root, args.agents, args.interval, args.timeout))
@@ -30,9 +38,9 @@ def command_watch_install(args):
 
 def command_watch_status(_args):
     root = repo_notify_root()
-    print_json(_backend().watcher_status(root))
+    print_json(watcher_status(root))
 
 
 def command_watch_uninstall(_args):
     root = repo_notify_root()
-    print_json(_backend().uninstall_watcher(root))
+    print_json(uninstall_watcher(root))

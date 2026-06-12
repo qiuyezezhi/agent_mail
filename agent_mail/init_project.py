@@ -38,7 +38,7 @@ def ensure_project_envrc(project_root, line="PATH_add bin"):
     return True
 
 
-def ensure_project_entrypoint(project_root):
+def ensure_project_entrypoint(project_root, force=False):
     bin_dir = project_root / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     scripts = {
@@ -77,7 +77,9 @@ def ensure_project_entrypoint(project_root):
     updated = False
     for name, content in scripts.items():
         path = bin_dir / name
-        if path.exists():
+        if path.exists() and not force:
+            continue
+        if path.exists() and path.read_text(encoding="utf-8", errors="ignore") == content:
             continue
         atomic_write_bytes(path, content.encode("utf-8"))
         if "." not in name:
@@ -86,13 +88,7 @@ def ensure_project_entrypoint(project_root):
     return updated
 
 
-def maybe_allow_direnv(project_root, envrc_updated, executable=None):
-    if not envrc_updated:
-        return {
-            "available": (executable or find_direnv()) is not None,
-            "allowed": False,
-            "reason": "existing .envrc left unchanged",
-        }
+def allow_direnv(project_root, executable=None):
     executable = executable or find_direnv()
     if executable is None:
         return {
@@ -110,7 +106,7 @@ def maybe_allow_direnv(project_root, envrc_updated, executable=None):
         return {
             "available": True,
             "allowed": True,
-            "reason": "generated .envrc allowed",
+            "reason": "direnv allow succeeded",
             "stdout": output or None,
         }
     return {
@@ -121,6 +117,19 @@ def maybe_allow_direnv(project_root, envrc_updated, executable=None):
         "stderr": (result.stderr or "").strip() or None,
         "returncode": result.returncode,
     }
+
+
+def maybe_allow_direnv(project_root, envrc_updated, executable=None):
+    if not envrc_updated:
+        return {
+            "available": (executable or find_direnv()) is not None,
+            "allowed": False,
+            "reason": "existing .envrc left unchanged",
+        }
+    status = allow_direnv(project_root, executable=executable)
+    if status["allowed"]:
+        status["reason"] = "generated .envrc allowed"
+    return status
 
 def parse_agent_specs(value):
     specs = []
@@ -201,6 +210,7 @@ def command_init(args):
         "watcher": watcher,
         "next_steps": [
             "agent-notify setup-direnv",
+            "agent-notify update",
             "agent-notify register <agent-name> --type <codex|claude|reasonix> --main",
             "agent-notify register <agent-name> --type <codex|claude|reasonix>",
             "agent-notify lint",

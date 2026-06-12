@@ -24,6 +24,17 @@ HELP_INTERFACES = {
             "--print-agent-rules": "Include a copyable project rules block in the JSON output.",
         },
     },
+    "update": {
+        "purpose": "Refresh local entry points and restart the watcher when it is installed.",
+        "parameters": {
+            "--no-gitignore": "Do not add .agent-notify/ to .gitignore.",
+            "--no-direnv": "Skip direnv allow even when direnv is available.",
+            "--no-watch": "Skip watcher status checks and restart.",
+            "--watch-agents": "Override watcher agents when reinstalling an already installed watcher.",
+            "--interval": "Override watcher polling interval when reinstalling.",
+            "--timeout": "Override per resume command timeout when reinstalling.",
+        },
+    },
     "setup-direnv": {
         "purpose": "Install direnv when needed and hook it into the recommended shell for the current platform.",
         "parameters": {

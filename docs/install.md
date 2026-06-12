@@ -94,6 +94,22 @@ agent-notify lint
 python3 -m unittest tools/agent_mail/tests/test_agent_mail.py
 ```
 
+### 6. 后续更新
+
+以后如果你替换或更新了 `tools/agent_mail/`，在目标项目根目录执行：
+
+```bash
+agent-notify update
+```
+
+这条命令会刷新本地入口和 `direnv` 授权。如果后台 watcher 已经安装，它会自动卸载并用原来的 watcher 参数重新安装。
+
+如果只想更新入口，不想动 watcher：
+
+```bash
+agent-notify update --no-watch
+```
+
 ## 次要方式：直接使用独立仓库
 
 假设你已经把这个仓库克隆到本地，例如：
@@ -169,6 +185,14 @@ agent-notify register reasonix-web --type reasonix
 ```bash
 agent-notify lint
 python3 -m unittest tests/test_agent_mail.py
+```
+
+### 6. 后续更新
+
+维护独立仓库本身时，更新代码后在仓库根目录执行：
+
+```bash
+agent-notify update
 ```
 
 ## 平台说明

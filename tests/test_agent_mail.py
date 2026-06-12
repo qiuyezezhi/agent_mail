@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -97,6 +98,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("interfaces", overview)
         self.assertIn("init", overview["interfaces"])
         self.assertIn("send", overview["interfaces"])
+        self.assertIn("update", overview["interfaces"])
         self.assertIn("watch run", overview["interfaces"])
         self.assertIn("docs/cli-reference.md", overview["docs"]["cli_reference"])
 
@@ -118,6 +120,52 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("Register an agent inbox name", register.stdout)
         self.assertIn("Required inbox address", register.stdout)
         self.assertIn("Mark this agent as the single global main-agent", register.stdout)
+
+    def test_update_refreshes_entrypoints_without_watcher(self):
+        shutil.copytree(ROOT / "agent_mail", self.repo / "agent_mail")
+        shutil.copy2(ROOT / "cli.py", self.repo / "cli.py")
+        self.cli("init")
+        entrypoint = self.repo / "bin" / "agent-notify"
+        entrypoint.write_text("#!/usr/bin/env python3\nprint('old')\n", encoding="utf-8")
+
+        output = self.parse_json(self.cli("update", "--no-watch", "--no-direnv"))
+
+        self.assertTrue(output["entrypoint_updated"])
+        self.assertEqual(output["watcher"]["reason"], "skipped")
+        self.assertIn("cli.py", entrypoint.read_text(encoding="utf-8"))
+        self.assertNotIn("print('old')", entrypoint.read_text(encoding="utf-8"))
+
+    def test_update_restarts_installed_launchd_watcher_preserving_config(self):
+        sys.path.insert(0, str(ROOT))
+        from agent_mail import launchd, update_project, watch_service
+
+        root = self.repo / ".agent-notify"
+        root.mkdir()
+        calls = []
+
+        def fake_run(args, text=True, capture_output=True):
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with (
+            mock.patch("agent_mail.launchd.sys.platform", "darwin"),
+            mock.patch("agent_mail.watch_service.sys.platform", "darwin"),
+            mock.patch("agent_mail.launchd.subprocess.run", side_effect=fake_run),
+        ):
+            launchd.install_watcher(root, "claude,reasonix", 7, 1800)
+            output = update_project.update_watcher(
+                root,
+                SimpleNamespace(no_watch=False, watch_agents=None, interval=None, timeout=None),
+            )
+
+        self.assertTrue(output["updated"])
+        self.assertEqual(output["agents"], "claude,reasonix")
+        self.assertEqual(output["interval"], 7.0)
+        self.assertEqual(output["timeout"], 1800.0)
+        self.assertGreaterEqual(
+            sum(1 for call in calls if call[:1] == ["launchctl"] and "load" in call),
+            2,
+        )
 
     def write_claude_session(self, home, session_id, content="{}\n", mtime=1):
         project_key = str(self.repo.resolve()).replace(os.sep, "-")

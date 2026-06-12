@@ -13,6 +13,7 @@ from .init_project import command_init
 from .lint import command_lint
 from .messages import command_handle, command_inbox, command_read, command_send, command_sent
 from .registry import command_agents, command_register, command_set_main
+from .update_project import command_update
 from .watch_service import command_watch_install, command_watch_status, command_watch_uninstall
 from .watcher import command_watch_run
 
@@ -93,6 +94,15 @@ def build_parser():
     init.add_argument("--setup-direnv", action="store_true", help=help_text("init", "--setup-direnv"))
     init.add_argument("--print-agent-rules", action="store_true", help=help_text("init", "--print-agent-rules"))
     init.set_defaults(func=command_init)
+
+    update = add_parser(subparsers, "update")
+    update.add_argument("--no-gitignore", action="store_true", help=help_text("update", "--no-gitignore"))
+    update.add_argument("--no-direnv", action="store_true", help=help_text("update", "--no-direnv"))
+    update.add_argument("--no-watch", action="store_true", help=help_text("update", "--no-watch"))
+    update.add_argument("--watch-agents", help=help_text("update", "--watch-agents"))
+    update.add_argument("--interval", type=float, help=help_text("update", "--interval"))
+    update.add_argument("--timeout", type=float, help=help_text("update", "--timeout"))
+    update.set_defaults(func=command_update)
 
     setup_direnv = add_parser(subparsers, "setup-direnv")
     setup_direnv.add_argument("--shell", help=help_text("setup-direnv", "--shell"))

@@ -20,6 +20,7 @@
 | --- | --- |
 | `help` | 输出工具作用、接口列表和单接口参数说明 |
 | `init` | 初始化当前 Git 仓库的通知机制 |
+| `update` | 更新本地入口并在 watcher 已安装时自动重启 watcher |
 | `register` | 注册一个 agent name，并绑定 agent type |
 | `agents` | 查看已注册 agent |
 | `set-main` | 切换全局唯一 main-agent |
@@ -184,6 +185,54 @@ agent-notify init --install-watcher --watch-agents claude-reviewer
 | `watcher` | watcher 安装结果 |
 | `next_steps` | 建议下一步命令 |
 | `rules` | 仅 `--print-agent-rules` 时出现 |
+
+## `update`
+
+刷新项目本地入口和运行环境。用于 `tools/agent_mail/` 代码更新后，把当前项目的 `bin/agent-notify*` 和 watcher 更新到新版本。
+
+```bash
+agent-notify update [options]
+```
+
+参数：
+
+| 参数 | 必需 | 作用 |
+| --- | --- | --- |
+| `--no-gitignore` | 否 | 不维护 `.gitignore` |
+| `--no-direnv` | 否 | 跳过 `direnv allow` |
+| `--no-watch` | 否 | 跳过 watcher 检查和重启 |
+| `--watch-agents <csv>` | 否 | 重装已安装 watcher 时覆盖 agent 列表 |
+| `--interval <seconds>` | 否 | 重装已安装 watcher 时覆盖轮询间隔 |
+| `--timeout <seconds>` | 否 | 重装已安装 watcher 时覆盖单次 resume 超时 |
+
+行为：
+
+- 确保 `.agent-notify/` 目录结构存在。
+- 默认确保 `.gitignore` 包含 `.agent-notify/`。
+- 如果仓库根目录还没有 `.envrc`，写入 `PATH_add bin`。
+- 强制刷新本地入口：`bin/agent-notify`、`bin/agent-notify.cmd`、`bin/agent-notify.ps1`。
+- 默认在本机有 `direnv` 时执行 `direnv allow <project-root>`。
+- 默认检查 watcher 状态；如果 watcher 已安装，读取原有 `agents/interval/timeout` 并自动卸载后重装。
+- 如果 watcher 没安装，不会自动安装新的 watcher。
+
+示例：
+
+```bash
+agent-notify update
+agent-notify update --no-watch
+agent-notify update --watch-agents claude-reviewer,reasonix-web --interval 5
+```
+
+输出字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `root` | `.agent-notify/` 绝对路径 |
+| `gitignore_updated` | 本次是否修改 `.gitignore` |
+| `envrc_updated` | 本次是否创建 `.envrc` |
+| `entrypoint_updated` | 本次是否刷新本地入口 |
+| `direnv` | `direnv allow` 结果 |
+| `watcher` | watcher 检查、跳过或重装结果 |
 
 ## `setup-direnv`
 

@@ -7,6 +7,7 @@ Copy this block into `AGENTS.md`, `CLAUDE.md`, or another project-level agent in
 
 - Use `agent-notify` for all cross-agent notifications.
 - Initialize the repository once with `agent-notify init`.
+- After updating `tools/agent_mail/`, run `agent-notify update` from the project root to refresh entry points and restart an installed watcher.
 - When project-local command activation is desired, run `agent-notify setup-direnv` or `agent-notify init --setup-direnv`.
 - Keep `.agent-notify/` in `.gitignore`; it is local runtime state and must not be committed.
 - Do not directly edit `.agent-notify/messages`, `.agent-notify/archive`, `.agent-notify/agents.json`, `.agent-notify/watcher-state.json`, or lock paths.
