@@ -8,8 +8,9 @@ import uuid
 from .constants import SUPPORTED_AGENT_TYPES
 from .errors import NotifyError
 from .messages import load_message
+from .notifications import notify_main_agent
 from .paths import logs_dir, messages_dir, repo_notify_root
-from .registry import agent_type, load_agent_records
+from .registry import agent_type, is_main_agent, load_agent_records
 from .sessions import select_agent_session
 from .storage import ensure_dirs, now_iso
 from .utils import parse_agent_names, print_json
@@ -111,7 +112,7 @@ def watch_log(root, message):
 
 def watch_once(root, agents, timeout_seconds):
     project_root = root.parent.resolve()
-    report = {"attempted": [], "failed": [], "skipped": []}
+    report = {"attempted": [], "failed": [], "skipped": [], "notified": []}
     for agent in agents:
         try:
             agent_type_value = agent_type(root, agent)
@@ -135,6 +136,26 @@ def watch_once(root, agents, timeout_seconds):
                     "next_attempt_at": retry["next_attempt_at"],
                 }
             )
+            continue
+        if is_main_agent(root, agent):
+            try:
+                notification = notify_main_agent(message)
+            except NotifyError as exc:
+                error = str(exc)
+                record_retry_failure(root, message["id"], error)
+                report["failed"].append(
+                    {
+                        "agent": agent,
+                        "message_id": message["id"],
+                        "returncode": None,
+                        "stderr": error,
+                    }
+                )
+            else:
+                clear_retry_failure(root, message["id"])
+                report["notified"].append(
+                    {"agent": agent, "message_id": message["id"], "platform": notification["platform"]}
+                )
             continue
         session = select_agent_session(agent_type_value, project_root, message, root)
         if session is None:

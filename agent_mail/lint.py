@@ -7,7 +7,7 @@ from .constants import REQUIRED_FIELDS, STATUSES
 from .errors import NotifyError
 from .messages import load_message
 from .paths import archive_dir, messages_dir, repo_notify_root
-from .registry import load_agents
+from .registry import load_agent_records, require_single_main
 from .storage import ensure_dirs, write_lock
 from .utils import print_json
 
@@ -44,13 +44,22 @@ def validate_message(path, location, agents):
         errors.append(f"{path.name}: file name must match message id")
     return errors
 
+
+def validate_agents(root):
+    records = load_agent_records(root)
+    mains = [record for record in records if record["main"]]
+    if records and not mains:
+        raise NotifyError("invalid agents registry: missing main-agent")
+    require_single_main(records)
+    return {record["name"] for record in records}
+
 def command_lint(_args):
     root = repo_notify_root()
     with write_lock(root):
         ensure_dirs(root)
         errors = []
         try:
-            agents = set(load_agents(root))
+            agents = validate_agents(root)
         except (json.JSONDecodeError, NotifyError) as exc:
             agents = set()
             errors.append(f"agents.json: {exc}")

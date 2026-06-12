@@ -8,6 +8,7 @@
 | --- | --- |
 | Agent name | 收件箱地址，用在 `send --to`、`inbox --agent`、`read --agent`、`handle --agent`、`watch --agents` |
 | Agent type | 唤醒驱动，目前支持 `codex`、`claude`、`reasonix` |
+| Main-agent | 全局唯一主 agent。必须先注册，且发给它本人的通知只做本地系统提醒，不自动 resume |
 | Message | `.agent-notify/messages/*.json` 中的一条通知 |
 | Watcher | 后台轮询 unread 消息，并在安全时 resume 对应 agent session |
 
@@ -21,6 +22,7 @@
 | `init` | 初始化当前 Git 仓库的通知机制 |
 | `register` | 注册一个 agent name，并绑定 agent type |
 | `agents` | 查看已注册 agent |
+| `set-main` | 切换全局唯一 main-agent |
 | `send` | 发送通知到收件箱 |
 | `inbox` | 查看某个 agent 的收件箱 |
 | `read` | 读取通知，并把 `unread` 改成 `read` |
@@ -148,6 +150,7 @@ agent-notify init [options]
 - 如果本机安装了 `direnv`，会立即对这份新生成的 `.envrc` 执行 `direnv allow`。
 - 如果传入 `--setup-direnv`，会先安装并接通 `direnv`，再执行 `direnv allow`。
 - 默认不注册 agent。
+- 如果传入 `--agents`，首个新注册 agent 会自动成为 main-agent。
 - 默认不安装 watcher。
 - 重复运行不会重复追加 `.gitignore`。
 - 已存在的 `.envrc` 不会被覆盖。
@@ -176,7 +179,7 @@ agent-notify init --install-watcher --watch-agents claude-reviewer
 | `direnv` | `direnv` 可用性与自动 allow 结果 |
 | `direnv_setup` | `direnv` 安装/接通结果；未触发时为 `null` |
 | `agents` | 已注册 agent name 列表 |
-| `agent_details` | 已注册 agent 的 `{name,type}` 列表 |
+| `agent_details` | 已注册 agent 的 `{name,type,main}` 列表 |
 | `registered_agents` | 本次新注册的 agent name |
 | `watcher` | watcher 安装结果 |
 | `next_steps` | 建议下一步命令 |
@@ -228,7 +231,7 @@ agent-notify setup-direnv [--shell <zsh|pwsh>] [--status]
 注册 agent name，并绑定 agent type。
 
 ```bash
-agent-notify register <agent-name> --type <codex|claude|reasonix>
+agent-notify register <agent-name> --type <codex|claude|reasonix> [--main]
 ```
 
 参数：
@@ -237,6 +240,7 @@ agent-notify register <agent-name> --type <codex|claude|reasonix>
 | --- | --- | --- |
 | `<agent-name>` | 是 | 收件箱名称 |
 | `--type <type>` | 条件必需 | 唤醒驱动，支持 `codex`、`claude`、`reasonix` |
+| `--main` | 否 | 把该 agent 设为全局唯一 main-agent |
 
 兼容规则：
 
@@ -248,16 +252,24 @@ agent-notify register <agent-name> --type <codex|claude|reasonix>
 示例：
 
 ```bash
+agent-notify register codex-main --type codex --main
 agent-notify register claude-reviewer --type claude
 agent-notify register reasonix-web --type reasonix
-agent-notify register codex-main --type codex
 ```
+
+约束：
+
+- 第一个注册的 agent 必须使用 `--main`。
+- main-agent 全局只能有一个。
+- 自定义名称仍然必须显式传 `--type`。
 
 失败：
 
 | 情况 | 结果 |
 | --- | --- |
 | agent name 已存在 | 非 0，报 `agent already registered` |
+| 第一个注册未带 `--main` | 非 0，报 `cannot register non-main agent before a main-agent exists` |
+| 已存在 main-agent 还再次传 `--main` | 非 0，报 `main-agent already exists` |
 | type 不支持 | 非 0，报 `unsupported agent type` |
 | 自定义 name 缺少 type | 非 0，报 `agent type is required` |
 
@@ -273,7 +285,7 @@ agent-notify agents [--details]
 
 | 参数 | 必需 | 作用 |
 | --- | --- | --- |
-| `--details` | 否 | 输出 `{name,type}` 详情 |
+| `--details` | 否 | 输出 `{name,type,main}` 详情 |
 
 输出：
 
@@ -285,10 +297,46 @@ agent-notify agents [--details]
 
 ```json
 [
-  {"name": "claude-reviewer", "type": "claude"},
-  {"name": "codex-main", "type": "codex"}
+  {"name": "claude-reviewer", "type": "claude", "main": false},
+  {"name": "codex-main", "type": "codex", "main": true}
 ]
 ```
+
+## `set-main`
+
+切换全局唯一 main-agent 到一个已注册 agent。
+
+```bash
+agent-notify set-main <agent-name>
+```
+
+参数：
+
+| 参数 | 必需 | 作用 |
+| --- | --- | --- |
+| `<agent-name>` | 是 | 已注册 agent 名称 |
+
+示例：
+
+```bash
+agent-notify set-main claude-reviewer
+```
+
+输出：
+
+```json
+{
+  "main_agent": "claude-reviewer",
+  "updated": true
+}
+```
+
+失败：
+
+| 情况 | 结果 |
+| --- | --- |
+| agent 未注册 | 非 0，报 `unregistered agent` |
+| 已经是 main-agent | 非 0，报 `agent is already the main-agent` |
 
 ## `send`
 
@@ -439,9 +487,19 @@ agent-notify watch run [--agents <csv>] [--interval <seconds>] [--timeout <secon
 
 - 每个 agent 每轮只取最早的 unread 消息。
 - 按 agent type 调用对应唤醒驱动。
+- 如果目标 agent 是 main-agent，watcher 不 resume；它只尝试发本地系统通知。
 - 同一 agent/session 同时只允许一个 resume。
 - resume 成功不代表消息 handled；接收 agent 必须自己 `read`、处理、`handle`。
 - resume 失败、超时、找不到 session 时，消息保持 `unread`。
+
+输出字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `attempted` | 成功 resume 的消息列表 |
+| `failed` | resume 失败或命令失败的消息列表 |
+| `skipped` | 因无安全会话、退避、锁冲突等跳过的消息列表 |
+| `notified` | 对 main-agent 仅发送本地系统通知的消息列表 |
 
 ## `watch install`
 

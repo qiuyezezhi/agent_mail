@@ -36,12 +36,19 @@ HELP_INTERFACES = {
         "parameters": {
             "<agent-name>": "Required inbox address used by send, inbox, read, handle, and watch.",
             "--type": "Required for custom names. One of codex, claude, or reasonix.",
+            "--main": "Mark this agent as the single global main-agent.",
         },
     },
     "agents": {
         "purpose": "List registered agent names, optionally with their wakeup types.",
         "parameters": {
             "--details": "Return objects with name and type instead of names only.",
+        },
+    },
+    "set-main": {
+        "purpose": "Switch the single global main-agent to an already registered agent.",
+        "parameters": {
+            "<agent-name>": "Required registered agent name that will become the new main-agent.",
         },
     },
     "send": {
@@ -117,6 +124,8 @@ AGENT_RULES_TEXT = """# Agent Notify Rules
 
 - Use `agent-notify` for all cross-agent notifications.
 - Register local identities before use: `agent-notify register <agent> --type <codex|claude|reasonix>`.
+- Register a single global main-agent first: `agent-notify register <agent> --type <codex|claude|reasonix> --main`.
+- Non-main agents can only be registered after the main-agent exists. Switch the main-agent with `agent-notify set-main <agent>`.
 - Agent names are inbox addresses; agent types select the wakeup driver.
 - Check notifications at task start: `agent-notify inbox --agent <agent>` and `agent-notify lint`.
 - Do not directly edit `.agent-notify/messages`, `.agent-notify/archive`, `.agent-notify/agents.json`, or watcher lock/state files.
@@ -126,6 +135,7 @@ AGENT_RULES_TEXT = """# Agent Notify Rules
 - `handled` means notification follow-up is complete; it does not mean the underlying implementation task succeeded.
 - When replying, start the body with `In reply to <message-id>` and include `--source-session-id <current-session-id>` when known.
 - The background watcher is the only automatic wakeup path. Install it explicitly with `agent-notify watch install`.
+- Messages sent to the main-agent itself only trigger a local system notification on supported platforms; they do not auto-resume that agent.
 """
 REQUIRED_FIELDS = {
     "id",

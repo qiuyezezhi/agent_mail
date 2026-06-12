@@ -49,9 +49,9 @@ def ensure_project_entrypoint(project_root):
             "import sys\n"
             "from pathlib import Path\n\n\n"
             'if __name__ == "__main__":\n'
-            '    package_root = Path(__file__).resolve().parents[1]\n'
-            '    sys.path.insert(0, str(package_root))\n'
-            '    target = package_root / "cli.py"\n'
+            '    project_root = Path(__file__).resolve().parents[1]\n'
+            '    sys.path.insert(0, str(project_root))\n'
+            '    target = project_root / "cli.py"\n'
             '    runpy.run_path(str(target), run_name="__main__")\n'
         ),
         "agent-notify.cmd": (
@@ -141,7 +141,18 @@ def register_missing_agents(root, agent_specs):
         ensure_dirs(root)
         existing = load_agent_records(root)
         existing_names = {record["name"] for record in existing}
-        missing_records = [record for record in agent_specs if record["name"] not in existing_names]
+        existing_has_main = any(record.get("main") for record in existing)
+        missing_records = []
+        for index, record in enumerate(agent_specs):
+            if record["name"] in existing_names:
+                continue
+            missing_records.append(
+                {
+                    "name": record["name"],
+                    "type": record["type"],
+                    "main": (not existing_has_main and not missing_records and index == 0),
+                }
+            )
         missing = [record["name"] for record in missing_records]
         if missing:
             save_agent_records(root, [*existing, *missing_records])
@@ -190,6 +201,7 @@ def command_init(args):
         "watcher": watcher,
         "next_steps": [
             "agent-notify setup-direnv",
+            "agent-notify register <agent-name> --type <codex|claude|reasonix> --main",
             "agent-notify register <agent-name> --type <codex|claude|reasonix>",
             "agent-notify lint",
             "agent-notify inbox --agent <agent>",

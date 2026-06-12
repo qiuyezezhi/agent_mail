@@ -10,7 +10,9 @@ Copy this block into `AGENTS.md`, `CLAUDE.md`, or another project-level agent in
 - When project-local command activation is desired, run `agent-notify setup-direnv` or `agent-notify init --setup-direnv`.
 - Keep `.agent-notify/` in `.gitignore`; it is local runtime state and must not be committed.
 - Do not directly edit `.agent-notify/messages`, `.agent-notify/archive`, `.agent-notify/agents.json`, `.agent-notify/watcher-state.json`, or lock paths.
-- Register agent identities with `agent-notify register <agent-name> --type <codex|claude|reasonix>`.
+- Register exactly one main-agent first with `agent-notify register <agent-name> --type <codex|claude|reasonix> --main`.
+- Register other agent identities with `agent-notify register <agent-name> --type <codex|claude|reasonix>`.
+- Switch the main-agent only through `agent-notify set-main <agent-name>`.
 - Agent names are inbox addresses; agent types select the wakeup driver.
 - At the start of each task, run `agent-notify inbox --agent <agent>` and `agent-notify lint`.
 - Send notifications with `agent-notify send --from <sender> --to <recipient> --subject <subject> --body <body>` or `--body-file <path>`.
@@ -21,6 +23,7 @@ Copy this block into `AGENTS.md`, `CLAUDE.md`, or another project-level agent in
 - `handled` only means the notification lifecycle is closed; it does not mean the underlying implementation task succeeded.
 - Reply bodies must start with `In reply to <message-id>` so the watcher can route replies to the sender's original session when possible.
 - The background watcher is the only automatic wakeup mechanism. Install it explicitly with `agent-notify watch install --agents <agent-name>,<agent-name>`.
+- Messages addressed to the main-agent itself only trigger a local system notification on supported platforms; they do not auto-resume that agent session.
 - If the watcher is not installed or cannot safely resume a session, messages remain queued until an agent handles them manually or a later watcher pass succeeds.
 - Treat `.agent-notify/logs/watcher.log` as wakeup diagnostics, not as the authoritative task result.
 ```

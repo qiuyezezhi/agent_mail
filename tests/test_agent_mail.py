@@ -70,7 +70,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         return json.loads(result.stdout)
 
     def register_default_agents(self):
-        self.cli("register", "codex", "--type", "codex")
+        self.cli("register", "codex", "--type", "codex", "--main")
         self.cli("register", "reasonix", "--type", "reasonix")
 
     def send(self, subject="Subject", body="Body", source_session_id=None):
@@ -192,11 +192,18 @@ class AgentNotifyCliTest(unittest.TestCase):
         return path
 
     def test_register_with_type_and_reject_unknown_agents(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
         self.cli("register", "worker", "--type", "codex")
         agents = self.parse_json(self.cli("agents"))
-        self.assertEqual(agents, ["worker"])
+        self.assertEqual(agents, ["codex-main", "worker"])
         details = self.parse_json(self.cli("agents", "--details"))
-        self.assertEqual(details, [{"name": "worker", "type": "codex"}])
+        self.assertEqual(
+            details,
+            [
+                {"name": "codex-main", "type": "codex", "main": True},
+                {"name": "worker", "type": "codex", "main": False},
+            ],
+        )
 
         duplicate = self.cli("register", "worker", "--type", "codex", ok=False)
         self.assertIn("agent already registered", duplicate.stderr)
@@ -205,7 +212,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("agent type is required", missing_type.stderr)
 
         inferred_legacy = self.parse_json(self.cli("register", "claude"))
-        self.assertEqual(inferred_legacy, ["claude", "worker"])
+        self.assertEqual(inferred_legacy, ["claude", "codex-main", "worker"])
 
         invalid_type = self.cli("register", "bad", "--type", "other", ok=False)
         self.assertIn("unsupported agent type", invalid_type.stderr)
@@ -223,6 +230,123 @@ class AgentNotifyCliTest(unittest.TestCase):
             ok=False,
         )
         self.assertIn("unregistered agent", unknown_sender.stderr)
+
+    def test_first_registration_requires_main_agent(self):
+        result = self.cli("register", "worker", "--type", "codex", ok=False)
+        self.assertIn("main-agent", result.stderr)
+
+    def test_register_main_agent_and_show_it_in_details(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
+        details = self.parse_json(self.cli("agents", "--details"))
+        self.assertEqual(details, [{"name": "codex-main", "type": "codex", "main": True}])
+
+    def test_second_main_agent_registration_is_rejected(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
+        second = self.cli("register", "claude-main", "--type", "claude", "--main", ok=False)
+        self.assertIn("main-agent already exists", second.stderr)
+
+    def test_set_main_switches_the_unique_main_agent(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
+        self.cli("register", "claude-reviewer", "--type", "claude")
+        output = self.parse_json(self.cli("set-main", "claude-reviewer"))
+        self.assertEqual(output, {"main_agent": "claude-reviewer", "updated": True})
+        details = self.parse_json(self.cli("agents", "--details"))
+        self.assertEqual(
+            details,
+            [
+                {"name": "claude-reviewer", "type": "claude", "main": True},
+                {"name": "codex-main", "type": "codex", "main": False},
+            ],
+        )
+
+    def test_set_main_rejects_unknown_agent(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
+        result = self.cli("set-main", "ghost", ok=False)
+        self.assertIn("unregistered agent", result.stderr)
+
+    def test_lint_rejects_registry_with_multiple_main_agents(self):
+        notify = self.repo / ".agent-notify"
+        notify.mkdir()
+        (notify / "agents.json").write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "agents": [
+                        {"name": "a", "type": "codex", "main": True},
+                        {"name": "b", "type": "claude", "main": True},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = self.cli("lint", ok=False)
+        self.assertIn("multiple main-agents", result.stderr)
+
+    def test_lint_rejects_registry_with_missing_main_agent(self):
+        notify = self.repo / ".agent-notify"
+        notify.mkdir()
+        (notify / "agents.json").write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "agents": [
+                        {"name": "a", "type": "codex", "main": False},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = self.cli("lint", ok=False)
+        self.assertIn("missing main-agent", result.stderr)
+
+    def test_notify_main_agent_builds_macos_notification_command(self):
+        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        from agent_mail import notifications
+
+        message = {"id": "123", "from": "worker", "to": "codex-main", "subject": "Review", "body": "Body"}
+        command = notifications.build_notification_command("darwin", message)
+        self.assertEqual(command[0], "osascript")
+        self.assertIn("display notification", command[2])
+
+    def test_notify_main_agent_builds_windows_notification_command(self):
+        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        from agent_mail import notifications
+
+        message = {"id": "123", "from": "worker", "to": "codex-main", "subject": "Review", "body": "Body"}
+        command = notifications.build_notification_command("win32", message)
+        self.assertIn(command[0].lower(), {"powershell.exe", "pwsh"})
+
+    def test_watch_run_once_notifies_main_agent_without_resume(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
+        self.cli("send", "--from", "codex-main", "--to", "codex-main", "--subject", "Review", "--body", "Body")
+
+        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        from agent_mail import watcher
+
+        with mock.patch("agent_mail.watcher.notify_main_agent", return_value={"platform": "macos"}) as notify:
+            output = watcher.watch_once(self.repo / ".agent-notify", ["codex-main"], 1800)
+
+        notify.assert_called_once()
+        self.assertEqual(output["notified"][0]["agent"], "codex-main")
+        inbox = self.parse_json(self.cli("inbox", "--agent", "codex-main"))
+        self.assertEqual(inbox[0]["status"], "unread")
+
+    def test_watch_run_once_keeps_main_agent_message_unread_on_notification_failure(self):
+        self.cli("register", "codex-main", "--type", "codex", "--main")
+        message = self.parse_json(
+            self.cli("send", "--from", "codex-main", "--to", "codex-main", "--subject", "Review", "--body", "Body")
+        )
+
+        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
+        from agent_mail import watcher
+        from agent_mail.errors import NotifyError
+
+        with mock.patch("agent_mail.watcher.notify_main_agent", side_effect=NotifyError("notify failed")):
+            output = watcher.watch_once(self.repo / ".agent-notify", ["codex-main"], 1800)
+
+        self.assertEqual(output["failed"][0]["message_id"], message["id"])
+        inbox = self.parse_json(self.cli("inbox", "--agent", "codex-main"))
+        self.assertEqual(inbox[0]["status"], "unread")
 
     def test_init_creates_queue_and_gitignore_without_registering_agents(self):
         first = self.parse_json(self.cli("init"))
@@ -305,7 +429,10 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(output["registered_agents"], ["alice", "bob"])
         self.assertEqual(
             self.parse_json(self.cli("agents", "--details")),
-            [{"name": "alice", "type": "codex"}, {"name": "bob", "type": "reasonix"}],
+            [
+                {"name": "alice", "type": "codex", "main": True},
+                {"name": "bob", "type": "reasonix", "main": False},
+            ],
         )
         self.assertFalse(output["gitignore_updated"])
         self.assertFalse((self.repo / ".gitignore").exists())
@@ -314,7 +441,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("`send` only queues", output["rules"])
 
     def test_setup_direnv_installs_and_hooks_zsh_on_macos(self):
-        sys.path.insert(0, str(ROOT))
+        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
         from agent_mail import direnv_setup
 
         home = Path(self.tmp.name) / "home"
@@ -352,7 +479,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertTrue(status["hook_present"])
 
     def test_setup_direnv_installs_and_hooks_powershell_on_windows(self):
-        sys.path.insert(0, str(ROOT))
+        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
         from agent_mail import direnv_setup
 
         home = Path(self.tmp.name) / "home"
@@ -623,7 +750,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertNotIn("fcntl", source)
 
     def test_send_to_claude_only_queues_message(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
 
         home = Path(self.tmp.name) / "home"
@@ -701,7 +828,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertFalse(call_log.exists())
 
     def test_send_from_reasonix_to_claude_only_queues_message(self):
-        self.cli("register", "reasonix")
+        self.cli("register", "reasonix", "--main")
         self.cli("register", "claude")
 
         home = Path(self.tmp.name) / "home"
@@ -746,7 +873,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertFalse(call_log.exists())
 
     def test_watch_run_once_resumes_latest_claude_session(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         message = self.parse_json(
             self.cli(
@@ -801,7 +928,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("handle --agent claude", prompt)
 
     def test_watch_uses_latest_project_session_from_claude_history(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         message = self.parse_json(
             self.cli("send", "--from", "codex", "--to", "claude", "--subject", "Review", "--body", "Body")
@@ -851,7 +978,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(call[call.index("-r") + 1], "82828282-8282-4282-8282-828282828282")
 
     def test_watch_waits_when_latest_claude_session_is_busy(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         message = self.parse_json(
             self.cli("send", "--from", "codex", "--to", "claude", "--subject", "Review", "--body", "Body")
@@ -898,7 +1025,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertFalse(call_log.exists())
 
     def test_watch_routes_reply_to_original_source_session(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         original = self.parse_json(
             self.cli(
@@ -967,7 +1094,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(call[call.index("-r") + 1], "84848484-8484-4484-8484-848484848484")
 
     def test_watch_creates_notification_session_when_resume_is_missing(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         self.cli(
             "send",
@@ -1022,7 +1149,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertNotIn(inbox[0]["id"], watcher_state["retries"])
 
     def test_watch_does_not_create_claude_session_for_generic_failure(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         self.cli("send", "--from", "codex", "--to", "claude", "--subject", "Review", "--body", "Body")
 
@@ -1053,7 +1180,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(len(call_log.read_text(encoding="utf-8").splitlines()), 1)
 
     def test_watch_keeps_unread_when_new_claude_session_fails(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         message = self.parse_json(
             self.cli("send", "--from", "codex", "--to", "claude", "--subject", "Review", "--body", "Body")
@@ -1095,7 +1222,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(watcher_state["retries"][message["id"]]["attempts"], 1)
 
     def test_watch_run_once_ignores_claude_mem_observer_session(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         self.cli("send", "--from", "codex", "--to", "claude", "--subject", "Review", "--body", "Body")
 
@@ -1129,7 +1256,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(call[call.index("-r") + 1], "55555555-5555-4555-8555-555555555555")
 
     def test_watch_run_once_resumes_latest_codex_repository_session(self):
-        self.cli("register", "claude")
+        self.cli("register", "claude", "--main")
         self.cli("register", "codex")
         message = self.parse_json(
             self.cli(
@@ -1195,7 +1322,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(Path(call["cwd"]).resolve(), self.repo.resolve())
 
     def test_watch_run_once_skips_active_codex_repository_session(self):
-        self.cli("register", "claude")
+        self.cli("register", "claude", "--main")
         self.cli("register", "codex")
         message = self.parse_json(
             self.cli("send", "--from", "claude", "--to", "codex", "--subject", "Reply", "--body", "Body")
@@ -1245,7 +1372,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertFalse(call_log.exists())
 
     def test_watch_run_once_ignores_non_repository_codex_sessions(self):
-        self.cli("register", "claude")
+        self.cli("register", "claude", "--main")
         self.cli("register", "codex")
         self.cli("send", "--from", "claude", "--to", "codex", "--subject", "Reply", "--body", "Body")
 
@@ -1278,7 +1405,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertFalse(call_log.exists())
 
     def test_watch_does_not_reject_project_session_that_mentions_claude_mem(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         self.cli("send", "--from", "codex", "--to", "claude", "--subject", "Review", "--body", "Body")
 
@@ -1351,7 +1478,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("source session id: codex-session-2", call[3])
 
     def test_watch_run_once_uses_registered_agent_type_for_custom_name(self):
-        self.cli("register", "coordinator", "--type", "codex")
+        self.cli("register", "coordinator", "--type", "codex", "--main")
         self.cli("register", "reasonix-web", "--type", "reasonix")
         message = self.parse_json(
             self.cli(
@@ -1399,7 +1526,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn("read --agent reasonix-web", call[3])
 
     def test_watch_run_once_serializes_same_session_with_lock(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         first_message = self.parse_json(
             self.cli("send", "--from", "codex", "--to", "claude", "--subject", "first", "--body", "first")
@@ -1462,7 +1589,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn(second_message["id"], calls[1][calls[1].index("-p") + 1])
 
     def test_watch_run_once_keeps_unread_when_cli_is_missing(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         self.cli("register", "claude")
         self.cli("send", "--from", "codex", "--to", "claude", "--subject", "Review", "--body", "Body")
 
@@ -1482,7 +1609,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertEqual(inbox[0]["status"], "unread")
 
     def test_watch_install_status_and_uninstall_manage_launchd_plist(self):
-        self.cli("register", "codex")
+        self.cli("register", "codex", "--main")
         home = Path(self.tmp.name) / "home"
         bin_dir = Path(self.tmp.name) / "bin"
         bin_dir.mkdir()
@@ -1533,7 +1660,7 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn(["unload", str(plist_path)], calls)
 
     def test_windows_task_scheduler_backend_writes_launcher_and_uses_schtasks(self):
-        sys.path.insert(0, str(ROOT))
+        sys.path.insert(0, str(ROOT / "tools" / "agent_mail"))
         from agent_mail import windows
 
         root = self.repo / ".agent-notify"

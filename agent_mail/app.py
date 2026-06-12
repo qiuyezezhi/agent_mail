@@ -11,7 +11,7 @@ from .help import command_help
 from .init_project import command_init
 from .lint import command_lint
 from .messages import command_handle, command_inbox, command_read, command_send, command_sent
-from .registry import command_agents, command_register
+from .registry import command_agents, command_register, command_set_main
 from .watch_service import command_watch_install, command_watch_status, command_watch_uninstall
 from .watcher import command_watch_run
 
@@ -23,11 +23,16 @@ def build_parser():
     register = subparsers.add_parser("register")
     register.add_argument("agent")
     register.add_argument("--type", dest="agent_type")
+    register.add_argument("--main", action="store_true")
     register.set_defaults(func=command_register)
 
     agents = subparsers.add_parser("agents")
     agents.add_argument("--details", action="store_true")
     agents.set_defaults(func=command_agents)
+
+    set_main = subparsers.add_parser("set-main")
+    set_main.add_argument("agent")
+    set_main.set_defaults(func=command_set_main)
 
     help_parser = subparsers.add_parser("help")
     help_parser.add_argument("topic", nargs="*")

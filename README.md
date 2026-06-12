@@ -6,11 +6,15 @@
 
 ```text
 agent_mail/
+├── agent_mail/
 ├── README.md
 ├── cli.py
 ├── docs/
 │   ├── agent-rules.md
-│   └── cli-reference.md
+│   ├── cli-reference.md
+│   └── install.md
+├── CHANGELOG.md
+├── LICENSE
 └── tests/
     └── test_agent_mail.py
 ```
@@ -32,10 +36,16 @@ python3 cli.py ...
 所以一个 agent 注册时要同时说明 name 和 type：
 
 ```bash
+agent-notify register codex-main --type codex --main
 agent-notify register claude-reviewer --type claude
 agent-notify register reasonix-web --type reasonix
-agent-notify register codex-main --type codex
 ```
+
+约束是：
+
+- 全局只能有一个 main-agent。
+- 第一个注册的 agent 必须是 main-agent。
+- 已注册 agent 之间可以用 `agent-notify set-main <agent-name>` 切换 main。
 
 发送消息时只使用 name：
 
@@ -61,7 +71,9 @@ agent-notify help setup-direnv
 ```bash
 agent-notify init
 agent-notify setup-direnv
+agent-notify register <agent-name> --type <codex|claude|reasonix> --main
 agent-notify register <agent-name> --type <codex|claude|reasonix>
+agent-notify set-main <agent-name>
 agent-notify agents --details
 agent-notify send --from <sender> --to <recipient> --subject <subject> --body <body>
 agent-notify inbox --agent <agent>
@@ -76,40 +88,40 @@ agent-notify watch run --once --agents <agent-name>
 
 完整接口、参数、输出字段和失败语义在：
 
-```text
-docs/cli-reference.md
-```
+`docs/cli-reference.md`
 
 可复制到项目规则文档的规则块在：
 
+`docs/agent-rules.md`
+
+## 安装
+
+最小安装步骤见 [docs/install.md](docs/install.md)。
+
+如果你要把它嵌进另一个项目，最简单的方式是复制这个仓库的以下内容：
+
 ```text
-docs/agent-rules.md
-```
-
-## 接入一个项目
-
-1. 复制整个目录：
-
-```text
-agent_mail/  (package)
+agent_mail/
 cli.py
 docs/
-tests/
 README.md
 ```
 
-2. `init` 会自动生成本地入口。如果目标项目想手动准备，也可以添加同名入口：
+`init` 会自动生成本地入口。如果目标项目想手动准备，也可以添加同名入口：
 
 ```python
 #!/usr/bin/env python3
 """Compatibility entry point for the bundled agent-notify tool."""
 
 import runpy
+import sys
 from pathlib import Path
 
 
 if __name__ == "__main__":
-    target = Path(__file__).resolve().parents[1] / "cli.py"
+    project_root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(project_root))
+    target = project_root / "cli.py"
     runpy.run_path(str(target), run_name="__main__")
 ```
 
@@ -119,7 +131,7 @@ if __name__ == "__main__":
 bin/agent-notify
 ```
 
-3. 初始化项目：
+然后初始化项目：
 
 ```bash
 agent-notify init
@@ -134,6 +146,7 @@ agent-notify init
 - 如果本机安装了 `direnv`，会立刻对这份新生成的 `.envrc` 执行 `direnv allow`。
 - 如果传入 `--setup-direnv`，会先按当前平台接通 `direnv` 再执行 `allow`。
 - 默认不注册 agent。
+- 如果传 `--agents`，会自动把首个新注册 agent 标记为 main-agent。
 - 默认不安装 watcher。
 
 如果仓库里本来就已经有 `.envrc`，`init` 不会覆盖它，也不会自动替它执行 `direnv allow`。这种情况仍然需要你自己决定是否授权。
@@ -171,15 +184,21 @@ direnv allow
 agent-notify setup-direnv --status
 ```
 
-4. 注册实际 agent：
+注册实际 agent：
 
 ```bash
-agent-notify register codex-main --type codex
+agent-notify register codex-main --type codex --main
 agent-notify register claude-reviewer --type claude
 agent-notify register reasonix-web --type reasonix
 ```
 
-5. 需要自动唤醒时安装 watcher：
+如果后续要切换主 agent：
+
+```bash
+agent-notify set-main claude-reviewer
+```
+
+需要自动唤醒时安装 watcher：
 
 ```bash
 agent-notify watch install --agents claude-reviewer,reasonix-web
@@ -189,6 +208,8 @@ agent-notify watch install --agents claude-reviewer,reasonix-web
 
 - macOS：使用 `launchd`
 - Windows：使用 Task Scheduler
+
+另外，发给 main-agent 本人的消息不会触发 session resume。watcher 只会在支持的平台上发系统通知；当前实现覆盖 macOS 和 Windows。
 
 如果当前平台不支持后台安装，仍然可以用前台方式：
 
@@ -235,19 +256,18 @@ agent-notify handle --agent <agent-name> <message-id> --note "Done."
 
 把下面文件里的规则块复制到目标项目的 `AGENTS.md`、`CLAUDE.md` 或等价规则文件：
 
-```text
-docs/agent-rules.md
-```
+`docs/agent-rules.md`
 
 最少要写清楚：
 
 - 新通知必须用 `agent-notify`。
 - `.agent-notify/` 是本地运行态，必须进 `.gitignore`。
-- agent 必须注册 name 和 type。
+- 第一个 agent 必须注册为 main-agent，且全局只能有一个 main-agent。
+- 其他 agent 必须注册 name 和 type；需要时用 `set-main` 切换主 agent。
 - 禁止直接编辑 `.agent-notify/` 内部文件。
 - `send` 只表示 queued，不表示接收方已处理。
 - `handled` 只关闭通知生命周期，不代表实现任务完成。
-- watcher 是自动唤醒入口；不能安全 resume 时消息保持 unread。
+- watcher 是自动唤醒入口；main-agent 本人的消息只弹系统通知，不自动 resume；不能安全 resume 时消息保持 unread。
 
 也可以让工具直接输出规则块：
 
