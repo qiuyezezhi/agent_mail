@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import shutil
 import sys
 
 from .constants import DEFAULT_INIT_AGENTS, HELP_INTERFACES
@@ -17,7 +18,23 @@ from .watcher import command_watch_run
 
 
 class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
-    pass
+    def __init__(self, prog):
+        width = shutil.get_terminal_size((120, 24)).columns
+        super().__init__(prog, max_help_position=32, width=width)
+
+    def _format_action(self, action):
+        if action.__class__.__name__ != "_ChoicesPseudoAction":
+            return super()._format_action(action)
+        action_header = self._format_action_invocation(action)
+        if not action.help:
+            return f"{' ' * self._current_indent}{action_header}\n"
+        help_position = 24
+        help_width = max(self._width - help_position, 11)
+        help_lines = self._split_lines(self._expand_help(action), help_width)
+        action_width = help_position - self._current_indent
+        first = f"{' ' * self._current_indent}{action_header:<{action_width}}{help_lines[0]}\n"
+        rest = "".join(f"{' ' * help_position}{line}\n" for line in help_lines[1:])
+        return first + rest
 
 
 def help_text(topic, parameter=None):
