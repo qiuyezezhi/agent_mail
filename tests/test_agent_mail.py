@@ -496,6 +496,8 @@ class AgentNotifyCliTest(unittest.TestCase):
         self.assertIn('pill("ID", details.messageID)', source)
         self.assertIn('label("Message", size: 11', source)
         self.assertIn("NSTextField(wrappingLabelWithString:", source)
+        self.assertIn("scrollerStyle = .overlay", source)
+        self.assertIn("autohidesScrollers = true", source)
         self.assertIn("cornerRadius = 14", source)
         self.assertIn("borderColor", source)
         self.assertNotIn("NSTextView()", source)

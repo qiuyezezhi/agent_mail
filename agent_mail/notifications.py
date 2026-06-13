@@ -328,6 +328,8 @@ func bodyView(_ text: String) -> NSScrollView {
     let scroll = NSScrollView()
     scroll.borderType = .noBorder
     scroll.hasVerticalScroller = true
+    scroll.scrollerStyle = .overlay
+    scroll.autohidesScrollers = true
     scroll.documentView = body
     scroll.drawsBackground = false
     scroll.wantsLayer = true
