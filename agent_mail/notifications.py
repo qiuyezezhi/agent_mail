@@ -220,6 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         meta.translatesAutoresizingMaskIntoConstraints = false
         let messageLabel = label("Message", size: 11, weight: .medium, color: .secondaryLabelColor)
         let body = bodyView(details.body)
+        let closeButton = closeButton(target: self)
 
         let stack = NSStackView(views: [accent, title, meta, messageLabel, body])
         stack.orientation = .vertical
@@ -228,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         cardSurface.addSubview(stack)
+        cardSurface.addSubview(closeButton)
         content.addSubview(cardSurface)
         card.contentView = content
         NSLayoutConstraint.activate([
@@ -238,16 +240,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             stack.leadingAnchor.constraint(equalTo: cardSurface.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: cardSurface.trailingAnchor, constant: -24),
             stack.topAnchor.constraint(equalTo: cardSurface.topAnchor, constant: 44),
-            stack.bottomAnchor.constraint(equalTo: cardSurface.bottomAnchor, constant: -22),
+            stack.bottomAnchor.constraint(equalTo: closeButton.topAnchor, constant: -16),
+            closeButton.trailingAnchor.constraint(equalTo: cardSurface.trailingAnchor, constant: -24),
+            closeButton.bottomAnchor.constraint(equalTo: cardSurface.bottomAnchor, constant: -22),
             accent.widthAnchor.constraint(equalToConstant: 72),
             accent.heightAnchor.constraint(equalToConstant: 4),
             body.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            body.heightAnchor.constraint(greaterThanOrEqualToConstant: 196),
+            body.heightAnchor.constraint(greaterThanOrEqualToConstant: 160),
         ])
 
         panel = card
         card.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc func closeDetailCard() {
+        panel?.close()
+        NSApp.terminate(nil)
     }
 
     private func scheduleQuit(after seconds: TimeInterval) {
@@ -317,6 +326,15 @@ func pill(_ labelText: String, _ value: String) -> NSView {
     stack.layer?.borderWidth = 1
     stack.layer?.cornerRadius = 9
     return stack
+}
+
+func closeButton(target: AnyObject) -> NSButton {
+    let button = NSButton(title: "关闭", target: target, action: #selector(AppDelegate.closeDetailCard))
+    button.bezelStyle = NSButton.BezelStyle.rounded
+    button.controlSize = NSControl.ControlSize.regular
+    button.keyEquivalent = "\r"
+    button.translatesAutoresizingMaskIntoConstraints = false
+    return button
 }
 
 func bodyView(_ text: String) -> NSScrollView {
