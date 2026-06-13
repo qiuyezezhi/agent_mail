@@ -35,6 +35,16 @@ func payloadValue(_ payload: [String: Any], _ name: String, fallback: String) ->
     payload[name] as? String ?? fallback
 }
 
+func stringKeyedPayload(_ payload: [AnyHashable: Any]) -> [String: Any] {
+    var result: [String: Any] = [:]
+    for (key, value) in payload {
+        if let name = key as? String {
+            result[name] = value
+        }
+    }
+    return result
+}
+
 func readPayload(_ path: String) -> [String: Any] {
     guard !path.isEmpty else {
         return [:]
@@ -61,22 +71,48 @@ struct MessageDetails {
     var summary: String {
         "From \(sender) to \(recipient)"
     }
+
+    var payload: [String: String] {
+        [
+            "message_id": messageID,
+            "subject": subject,
+            "from": sender,
+            "to": recipient,
+            "body": body,
+        ]
+    }
+
+    static func from(payload: [String: Any], fallback: [String: String] = [:]) -> MessageDetails? {
+        let messageID = payloadValue(payload, "message_id", fallback: fallback["message_id"] ?? "")
+        guard !messageID.isEmpty else {
+            return nil
+        }
+        return MessageDetails(
+            messageID: messageID,
+            subject: payloadValue(payload, "subject", fallback: fallback["subject"] ?? ""),
+            sender: payloadValue(payload, "from", fallback: fallback["from"] ?? ""),
+            recipient: payloadValue(payload, "to", fallback: fallback["to"] ?? ""),
+            body: payloadValue(payload, "body", fallback: fallback["body"] ?? "")
+        )
+    }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSWindowDelegate {
-    private let details: MessageDetails
+    private var details: MessageDetails?
     private var panel: NSPanel?
     private var quitTimer: Timer?
 
-    init(details: MessageDetails) {
+    init(details: MessageDetails?) {
         self.details = details
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         UNUserNotificationCenter.current().delegate = self
-        scheduleQuit(after: 300)
-        deliverNotification()
+        scheduleQuit(after: details == nil ? 5 : 300)
+        if details != nil {
+            deliverNotification()
+        }
     }
 
     func userNotificationCenter(
@@ -85,6 +121,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         DispatchQueue.main.async {
+            let payload = stringKeyedPayload(response.notification.request.content.userInfo)
+            if let responseDetails = MessageDetails.from(payload: payload) {
+                self.details = responseDetails
+            }
             self.showDetailCard()
             completionHandler()
         }
@@ -103,6 +143,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func deliverNotification() {
+        guard let details = details else {
+            return
+        }
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
@@ -115,11 +158,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
 
             let content = UNMutableNotificationContent()
-            content.title = self.details.title
-            content.body = self.details.summary
+            content.title = details.title
+            content.body = details.summary
             content.sound = .default
+            content.userInfo = details.payload
 
-            let request = UNNotificationRequest(identifier: self.details.messageID, content: content, trigger: nil)
+            let request = UNNotificationRequest(identifier: details.messageID, content: content, trigger: nil)
             center.add(request) { error in
                 if let error = error {
                     writeError("notification delivery failed: \(error.localizedDescription)")
@@ -131,6 +175,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func showDetailCard() {
         quitTimer?.invalidate()
+
+        guard let details = details else {
+            NSApp.terminate(nil)
+            return
+        }
 
         if let panel = panel {
             panel.makeKeyAndOrderFront(nil)
@@ -305,12 +354,15 @@ let payload = readPayload(payloadPath)
 if !payloadPath.isEmpty {
     try? FileManager.default.removeItem(atPath: payloadPath)
 }
-let details = MessageDetails(
-    messageID: payloadValue(payload, "message_id", fallback: argumentValue("--message-id")),
-    subject: payloadValue(payload, "subject", fallback: argumentValue("--subject")),
-    sender: payloadValue(payload, "from", fallback: argumentValue("--from")),
-    recipient: payloadValue(payload, "to", fallback: argumentValue("--to")),
-    body: payloadValue(payload, "body", fallback: argumentValue("--body"))
+let details = MessageDetails.from(
+    payload: payload,
+    fallback: [
+        "message_id": argumentValue("--message-id"),
+        "subject": argumentValue("--subject"),
+        "from": argumentValue("--from"),
+        "to": argumentValue("--to"),
+        "body": argumentValue("--body"),
+    ]
 )
 let delegate = AppDelegate(details: details)
 let app = NSApplication.shared
